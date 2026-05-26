@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PortfolioSession } from "../../../lib/sessions";
+import { exportPortfolioMarkdown } from "./actions";
 
 type PortfolioGeneratorProps = {
   sessions: PortfolioSession[];
@@ -42,6 +43,8 @@ export function PortfolioGenerator({ sessions }: PortfolioGeneratorProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [generatedMarkdown, setGeneratedMarkdown] = useState("");
   const [copyLabel, setCopyLabel] = useState("Copy");
+  const [exportMessage, setExportMessage] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
   const selectedSessions = useMemo(
     () => sessions.filter((session) => selectedIds.includes(session.id)),
@@ -59,6 +62,7 @@ export function PortfolioGenerator({ sessions }: PortfolioGeneratorProps) {
   function generatePortfolio(): void {
     setGeneratedMarkdown(buildPortfolioMarkdown(selectedSessions));
     setCopyLabel("Copy");
+    setExportMessage("");
   }
 
   async function copyMarkdown(): Promise<void> {
@@ -68,6 +72,22 @@ export function PortfolioGenerator({ sessions }: PortfolioGeneratorProps) {
 
     await navigator.clipboard.writeText(generatedMarkdown);
     setCopyLabel("Copied");
+  }
+
+  async function exportMarkdown(): Promise<void> {
+    if (!generatedMarkdown) {
+      return;
+    }
+
+    setIsExporting(true);
+    setExportMessage("");
+
+    try {
+      const filePath = await exportPortfolioMarkdown(generatedMarkdown);
+      setExportMessage(`Saved to ${filePath}`);
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   if (sessions.length === 0) {
@@ -118,7 +138,19 @@ export function PortfolioGenerator({ sessions }: PortfolioGeneratorProps) {
           >
             {copyLabel}
           </button>
+          <button
+            className="button secondary"
+            disabled={!generatedMarkdown || isExporting}
+            onClick={exportMarkdown}
+            type="button"
+          >
+            {isExporting ? "Exporting..." : "Export Markdown"}
+          </button>
         </div>
+
+        {exportMessage ? (
+          <p className="success-message">{exportMessage}</p>
+        ) : null}
       </div>
 
       <div className="portfolio-panel preview-panel">

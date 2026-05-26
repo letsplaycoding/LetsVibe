@@ -476,6 +476,17 @@ h1 {
   margin-top: 18px;
 }
 
+.success-message {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  color: #047857;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+}
+
 .preview-placeholder {
   color: var(--muted);
   line-height: 1.6;
