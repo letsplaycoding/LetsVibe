@@ -5,7 +5,9 @@
   "packageManager": "pnpm@9.15.4",
   "type": "module",
   "scripts": {
-    "build": "corepack pnpm --filter @letsvibe/cli build"
+    "build": "corepack pnpm --filter @letsvibe/cli build",
+    "web:dev": "corepack pnpm --filter @letsvibe/web dev",
+    "web:build": "corepack pnpm --filter @letsvibe/web build"
   },
   "devDependencies": {
     "@types/node": "^20.17.10",
