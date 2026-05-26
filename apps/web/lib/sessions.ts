@@ -15,6 +15,7 @@ export type SessionDetail = DashboardSession & {
   risks: string[];
   todos: string[];
   portfolioText: string;
+  gitStatus: string;
   markdownPreview: string | null;
 };
 
@@ -24,6 +25,7 @@ type RawSession = {
   note?: string;
   git?: {
     changedFiles?: string[];
+    status?: string;
   };
   analysis?: {
     feature_name?: string;
@@ -78,6 +80,7 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
     risks: rawSession.analysis?.risks ?? [],
     todos: rawSession.analysis?.todos ?? [],
     portfolioText: rawSession.analysis?.portfolio_text ?? "",
+    gitStatus: rawSession.git?.status ?? "",
     markdownPreview: readMarkdownPreview(id, featureName)
   };
 }

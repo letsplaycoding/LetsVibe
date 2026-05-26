@@ -11,6 +11,12 @@ type SessionPageProps = {
   }>;
 };
 
+function formatRelativePath(filePath: string): string {
+  const parts = filePath.split(/[\\/]/).filter(Boolean);
+
+  return parts.at(-1) ?? filePath;
+}
+
 export default async function SessionPage({ params }: SessionPageProps) {
   const { id } = await params;
   const session = getDashboardSession(id);
@@ -21,6 +27,9 @@ export default async function SessionPage({ params }: SessionPageProps) {
         <nav className="nav" aria-label="Main navigation">
           <Link className="brand" href="/dashboard">
             VibeLog
+          </Link>
+          <Link className="button secondary" href="/dashboard">
+            Back to Dashboard
           </Link>
         </nav>
 
@@ -54,14 +63,19 @@ export default async function SessionPage({ params }: SessionPageProps) {
                 ) : (
                   <ul>
                     {session.changedFiles.map((file) => (
-                      <li key={file}>{file}</li>
+                      <li key={file} title={file}>
+                        {formatRelativePath(file)}
+                      </li>
                     ))}
                   </ul>
                 )}
               </article>
 
               <article className="detail-panel">
-                <h2>Risks</h2>
+                <div className="panel-heading">
+                  <h2>Risks</h2>
+                  <span className="badge badge-risk">{session.risks.length}</span>
+                </div>
                 {session.risks.length === 0 ? (
                   <p>None</p>
                 ) : (
@@ -74,7 +88,10 @@ export default async function SessionPage({ params }: SessionPageProps) {
               </article>
 
               <article className="detail-panel">
-                <h2>Todos</h2>
+                <div className="panel-heading">
+                  <h2>Todos</h2>
+                  <span className="badge badge-todo">{session.todos.length}</span>
+                </div>
                 {session.todos.length === 0 ? (
                   <p>None</p>
                 ) : (
@@ -89,6 +106,13 @@ export default async function SessionPage({ params }: SessionPageProps) {
               <article className="detail-panel wide">
                 <h2>Portfolio Text</h2>
                 <p>{session.portfolioText || "(empty)"}</p>
+              </article>
+
+              <article className="detail-panel wide">
+                <h2>Git Status</h2>
+                <pre className="code-block">
+                  <code>{session.gitStatus || "(clean)"}</code>
+                </pre>
               </article>
 
               <article className="detail-panel wide">
