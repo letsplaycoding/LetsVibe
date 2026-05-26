@@ -41,6 +41,9 @@ export default function DashboardPage() {
             VibeLog
           </a>
           <div className="nav-actions">
+            <Link className="button secondary" href="/dashboard/search">
+              Search
+            </Link>
             <Link className="button secondary" href="/dashboard/timeline">
               Timeline
             </Link>

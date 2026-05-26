@@ -524,6 +524,52 @@ h1 {
   color: var(--accent-strong);
 }
 
+.search-controls {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  margin-bottom: 16px;
+}
+
+.search-field,
+.sort-field {
+  display: grid;
+  gap: 8px;
+}
+
+.search-field span,
+.sort-field span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.search-input,
+.select-control {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--foreground);
+  font: inherit;
+  min-height: 46px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.search-input:focus,
+.select-control:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(15, 118, 110, 0.18);
+}
+
+.search-summary {
+  color: var(--muted);
+  font-size: 14px;
+  margin: -8px 0 18px;
+}
+
 .timeline {
   display: grid;
   gap: 28px;
@@ -627,6 +673,10 @@ h1 {
   }
 
   .portfolio-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .search-controls {
     grid-template-columns: 1fr;
   }
 

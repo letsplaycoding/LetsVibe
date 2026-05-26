@@ -23,6 +23,8 @@ export type PortfolioSession = DashboardSession & {
   portfolioText: string;
 };
 
+export type SearchSession = SessionDetail;
+
 type RawSession = {
   id?: string;
   createdAt?: string;
@@ -141,6 +143,28 @@ export function getPortfolioSessions(): PortfolioSession[] {
         changedFilesCount: session.changedFilesCount,
         portfolioText: session.portfolioText
       };
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+}
+
+export function getSearchSessions(): SearchSession[] {
+  const sessionsDir = join(getRepositoryRoot(), ".vibelog", "sessions");
+
+  if (!existsSync(sessionsDir)) {
+    return [];
+  }
+
+  return readdirSync(sessionsDir)
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => {
+      const rawSession = JSON.parse(
+        readFileSync(join(sessionsDir, file), "utf8")
+      ) as RawSession;
+
+      return toSessionDetail(rawSession, file);
     })
     .sort(
       (a, b) =>
