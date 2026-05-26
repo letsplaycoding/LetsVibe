@@ -1,360 +1,206 @@
-<div align="center">
-
 # VibeLog
 
-### Turn AI coding into explainable development history.
-
-AI-generated code is fast.  
-But can you explain it later?
-
-VibeLog converts AI coding sessions into:
-
-📝 Development Logs  
-📦 Commit Messages  
-📚 Portfolio Entries  
-📄 README Sections  
-🎯 Technical Decision Records  
-
----
-
-**Built for Claude, Codex, Cursor, and Vibe Coders**
-
-</div>
-
----
-
-## Why VibeLog?
-
-Modern AI coding is incredibly fast.
-
-But after a few days:
-
-```text
-Why was this changed?
-Which files were affected?
-What feature was implemented?
-How do I explain this in my portfolio?
-```
-
-AI helps us build faster.
-
-VibeLog helps us remember.
-
----
-
-## Problem
-
-When using AI coding tools:
-
-```text
-Claude refactored authentication
-
-Codex changed database schema
-
-Cursor modified API structure
-
-...
-```
-
-A few days later:
-
-```text
-What exactly happened?
-```
-
-Git shows:
-
-```diff
-+ 15 files changed
-- 2 files removed
-```
-
-But Git does not explain:
-
-- Why it changed
-- What feature was implemented
-- Impact scope
-- Risks
-- Portfolio explanation
-
----
-
-## Solution
-
-VibeLog analyzes:
-
-```text
-Git Diff
-Changed Files
-User Notes
-Commits
-```
-
-Then generates:
-
-```yaml
-Feature:
-JWT Authentication
-
-Summary:
-Implemented token-based login system.
-
-Impact:
-Auth API
-Security Config
-User Flow
-
-Risks:
-Missing refresh token handling
-
-Commit:
-feat: add JWT authentication
-
-Portfolio:
-Implemented JWT authentication using Spring Security...
-```
-
----
-
-## Workflow
-
-```text
-AI Coding
-      ↓
-Feature Implementation
-      ↓
-npx vibelog end
-      ↓
-Git Diff Analysis
-      ↓
-AI Interpretation
-      ↓
-Development Log Generated
-      ↓
-Portfolio / README / Commit Output
-```
-
----
-
-## Example
-
-User:
-
-```text
-Create login using Spring Security + JWT
-```
-
-AI changes:
-
-```text
-AuthController.java
-AuthService.java
-JwtProvider.java
-SecurityConfig.java
-```
-
-Run:
-
-```bash
-npx vibelog end
-```
-
-Generated:
-
-```yaml
-Feature:
-JWT Login
-
-Reason:
-Authentication system implementation
-
-Impact:
-Login API
-Security Layer
-
-Todo:
-Add integration tests
-
-Portfolio:
-Implemented authentication workflow using JWT...
-```
-
----
-
-## MVP Scope
-
-### CLI
-
-```bash
-npx vibelog init
-npx vibelog end
-npx vibelog list
-```
-
-Functions:
-
-- Git diff collection
-- AI analysis
-- Log generation
-- Markdown export
-- Portfolio generation
-
----
-
-### Dashboard
-
-Planned:
-
-```text
-Projects
-
-DevLint
- ├ JWT Authentication
- ├ GitHub Integration
- └ Security Refactor
-```
-
-Features:
-
-- Session history
+Turn AI-assisted coding changes into explainable development history.
+
+VibeLog is a local-first developer tool that collects Git changes, asks for a short work note, stores session history locally, generates readable Markdown logs, and displays everything in a small Next.js dashboard.
+
+## Current Features
+
+- CLI command: `vibelog end`
+- CLI command: `vibelog list`
+- CLI command: `vibelog show`
+- CLI command: `vibelog replay`
+- Local JSON session export
+- Local Markdown log export
+- Optional OpenAI analysis
+- Mock AI analysis fallback when `OPENAI_API_KEY` is missing or OpenAI fails
+- Web dashboard
+- Session list
+- Session detail page
+- Rendered Markdown preview
 - Portfolio generator
-- README generator
-- Release notes
-- Technical timeline
+- Portfolio Markdown export
 
----
+## Local-First Storage
+
+VibeLog writes local files under `.vibelog/`:
+
+```text
+.vibelog/
+  sessions/
+    {timestamp}.json
+  logs/
+    {timestamp}-{slug}.md
+  portfolio/
+    portfolio-{timestamp}.md
+```
+
+No database, authentication, payment system, or hosted backend is required.
+
+## OpenAI Is Optional
+
+Set `OPENAI_API_KEY` in `.env` if you want real AI analysis:
+
+```text
+OPENAI_API_KEY=your_api_key_here
+```
+
+If the key is missing, invalid, or the OpenAI request fails, VibeLog automatically uses mock analysis and prints:
+
+```text
+Using mock AI analysis
+```
+
+Mock mode works without billing.
+
+## Install
+
+```bash
+corepack pnpm install
+```
+
+## CLI Usage
+
+From `apps/cli`:
+
+```bash
+npm run dev -- end
+npm run dev -- list
+npm run dev -- show
+npm run dev -- show 1
+npm run dev -- replay
+npm run dev -- replay 1
+```
+
+Build the CLI:
+
+```bash
+corepack pnpm --filter @letsvibe/cli build
+```
+
+### `vibelog end`
+
+Collects:
+
+- current Git repository
+- `git diff`
+- `git status --short`
+- changed files from `git diff --name-only`
+- user note
+- AI or mock analysis
+
+Saves:
+
+- `.vibelog/sessions/{timestamp}.json`
+- `.vibelog/logs/{timestamp}-{slug}.md`
+
+### `vibelog list`
+
+Lists local sessions newest first and shows:
+
+- index
+- feature name
+- creation time
+- changed files count
+- Markdown log path
+
+### `vibelog show`
+
+Shows a detailed session. Defaults to the latest session.
+
+```bash
+npm run dev -- show
+npm run dev -- show 1
+npm run dev -- show 2026-05-26T06-00-00-000Z
+```
+
+### `vibelog replay`
+
+Displays a timeline-style replay of a session. Defaults to the latest session.
+
+```bash
+npm run dev -- replay
+npm run dev -- replay 1
+```
+
+## Web Dashboard Usage
+
+Run the dashboard:
+
+```bash
+corepack pnpm web:dev
+```
+
+Then open:
+
+```text
+http://localhost:3000
+http://localhost:3000/dashboard
+```
+
+If port `3000` is already in use, Next.js may choose another port such as `3001`.
+
+Dashboard routes:
+
+- `/` - product intro and dashboard link
+- `/dashboard` - local session list
+- `/dashboard/session/[id]` - session detail page with Markdown preview
+- `/dashboard/portfolio` - select sessions, generate portfolio Markdown, copy it, and export it locally
+
+## Web Features
+
+The dashboard reads local session JSON files server-side from `.vibelog/sessions`.
+
+It supports:
+
+- session count
+- newest-first session list
+- clickable session cards
+- relative timestamps
+- session detail pages
+- rendered Markdown log preview
+- Git status code block
+- portfolio generation from selected sessions
+- portfolio export to `.vibelog/portfolio/portfolio-{timestamp}.md`
 
 ## Tech Stack
 
-### Frontend
-
-- Next.js
-- TailwindCSS
-- shadcn/ui
-
-### Backend
-
-- Next.js API Routes
-- Supabase
-
-### AI
-
-- OpenAI
-- Anthropic
-
-### CLI
-
-- Node.js
 - TypeScript
-
-### Deploy
-
-- Vercel
-
----
+- Node.js
+- pnpm
+- Next.js App Router
+- React
+- Local filesystem storage
 
 ## Project Structure
 
 ```text
-vibelog/
-
 apps/
- ├ web
- └ cli
-
-packages/
- ├ ai
- ├ shared
- └ types
-
+  cli/
+  web/
 docs/
-
+packages/
 README.md
+AGENTS.md
 ```
 
----
+## Non-Goals
 
-## Vision
+Current non-goals:
 
-AI writes code.
+- database
+- authentication
+- payment
+- hosted SaaS backend
+- required OpenAI billing
 
-VibeLog preserves understanding.
+## Build
 
-We believe future developers will need:
-
-- AI memory
-- Development history
-- Explainable portfolios
-- Technical storytelling
-
----
+```bash
+corepack pnpm --filter @letsvibe/cli build
+corepack pnpm --filter @letsvibe/web build
+```
 
 ## Status
 
-🚧 Planning Phase
-
-Current Goal:
-
-```text
-git diff
-      ↓
-AI Analysis
-      ↓
-Development Log
-      ↓
-Markdown Export
-```
-
----
-
-## Roadmap
-
-### Phase 1
-
-CLI MVP
-
-- [ ] init command
-- [ ] end command
-- [ ] git diff parser
-- [ ] markdown export
-
-### Phase 2
-
-AI Analysis
-
-- [ ] feature detection
-- [ ] risk analysis
-- [ ] commit generation
-- [ ] portfolio generation
-
-### Phase 3
-
-Dashboard
-
-- [ ] project management
-- [ ] session history
-- [ ] portfolio builder
-
-### Phase 4
-
-SaaS
-
-- [ ] authentication
-- [ ] subscriptions
-- [ ] billing
-
----
-
-## License
-
-Currently private development.
-
-License TBD.
-
----
-
-<div align="center">
-
-Built for vibe coders.
-
-</div>
+Current working phase includes CLI logging, local Markdown exports, local web dashboard, session detail pages, rendered Markdown previews, portfolio generation, and local portfolio Markdown export.
