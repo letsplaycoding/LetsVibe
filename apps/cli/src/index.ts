@@ -490,8 +490,77 @@ function listCommand(): void {
   });
 }
 
+function findSession(
+  sessions: ListedSession[],
+  sessionReference: string | undefined
+): ListedSession | null {
+  if (!sessionReference) {
+    return sessions[0] ?? null;
+  }
+
+  if (/^\d+$/.test(sessionReference)) {
+    const index = Number(sessionReference) - 1;
+    return sessions[index] ?? null;
+  }
+
+  const normalizedReference = sessionReference.endsWith(".json")
+    ? sessionReference.slice(0, -5)
+    : sessionReference;
+
+  return (
+    sessions.find(
+      ({ session }) =>
+        session.id === normalizedReference || `${session.id}.json` === sessionReference
+    ) ?? null
+  );
+}
+
+function printDetailedSession(listedSession: ListedSession): void {
+  const { session, markdownPath } = listedSession;
+
+  console.log(session.analysis.feature_name);
+  console.log(`Created: ${session.createdAt}`);
+  console.log(`User Note: ${session.note || "(empty)"}`);
+  console.log("");
+  console.log("Summary:");
+  console.log(session.analysis.summary);
+  console.log("");
+  console.log("Changed Files:");
+  console.log(formatMarkdownList(session.git.changedFiles));
+  console.log("");
+  console.log("Risks:");
+  console.log(formatMarkdownList(session.analysis.risks));
+  console.log("");
+  console.log("Todos:");
+  console.log(formatMarkdownList(session.analysis.todos));
+  console.log("");
+  console.log("Portfolio Text:");
+  console.log(session.analysis.portfolio_text);
+  console.log("");
+  console.log(`Markdown: ${markdownPath ?? "Not found"}`);
+}
+
+function showCommand(sessionReference: string | undefined): void {
+  const repositoryRoot = getRepositoryRoot();
+  const sessions = readSessions(repositoryRoot);
+
+  if (sessions.length === 0) {
+    console.log("No VibeLog sessions found yet. Run `vibelog end` first.");
+    return;
+  }
+
+  const listedSession = findSession(sessions, sessionReference);
+
+  if (!listedSession) {
+    console.log("VibeLog session not found.");
+    return;
+  }
+
+  printDetailedSession(listedSession);
+}
+
 async function main(): Promise<void> {
-  const [command] = process.argv.slice(2);
+  const [command, sessionReference] = process.argv.slice(2);
 
   if (command === "end") {
     await endCommand();
@@ -503,7 +572,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.error("Usage: vibelog end | vibelog list");
+  if (command === "show") {
+    showCommand(sessionReference);
+    return;
+  }
+
+  console.error("Usage: vibelog end | vibelog list | vibelog show [session]");
   process.exitCode = 1;
 }
 
