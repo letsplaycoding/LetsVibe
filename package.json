@@ -7,8 +7,13 @@
   "scripts": {
     "build": "corepack pnpm --filter @letsvibe/cli build",
     "web:dev": "corepack pnpm --filter @letsvibe/web dev",
-    "web:build": "corepack pnpm --filter @letsvibe/web build"
+    "web:build": "corepack pnpm --filter @letsvibe/web build",
+    "dev": "npm run dev --workspace=@letsvibe/web"
   },
+"workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "devDependencies": {
     "@types/node": "^20.17.10",
     "typescript": "^5.7.2"

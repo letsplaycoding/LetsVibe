@@ -1,19 +1,11 @@
-const cards = [
-  {
-    title: "Recent Sessions",
-    description: "Review locally saved coding sessions from the CLI."
-  },
-  {
-    title: "Markdown Logs",
-    description: "Browse generated Markdown development logs."
-  },
-  {
-    title: "Portfolio Generator",
-    description: "Prepare concise project stories from session summaries."
-  }
-];
+import Link from "next/link";
+import { getDashboardSessions } from "../../lib/sessions";
+
+export const dynamic = "force-dynamic";
 
 export default function DashboardPage() {
+  const sessions = getDashboardSessions();
+
   return (
     <main className="page">
       <div className="shell">
@@ -31,13 +23,35 @@ export default function DashboardPage() {
           </p>
         </header>
 
-        <section className="card-grid" aria-label="Dashboard sections">
-          {cards.map((card) => (
-            <article className="card" key={card.title}>
-              <h2>{card.title}</h2>
-              <p>{card.description}</p>
-            </article>
-          ))}
+        <section aria-label="Recent sessions">
+          {sessions.length === 0 ? (
+            <div className="empty-state">No sessions found</div>
+          ) : (
+            <div className="session-list">
+              {sessions.map((session) => (
+                <Link
+                  className="session-card"
+                  href={`/dashboard/session/${session.id}`}
+                  key={session.id}
+                >
+                  <div>
+                    <h2>{session.featureName}</h2>
+                    <p>{session.summary}</p>
+                  </div>
+                  <dl className="session-meta">
+                    <div>
+                      <dt>Created</dt>
+                      <dd>{session.createdAt}</dd>
+                    </div>
+                    <div>
+                      <dt>Changed files</dt>
+                      <dd>{session.changedFilesCount}</dd>
+                    </div>
+                  </dl>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </main>
