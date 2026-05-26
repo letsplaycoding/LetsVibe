@@ -100,6 +100,11 @@ h1 {
   background: var(--accent-strong);
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .button.secondary {
   background: #ffffff;
   border-color: var(--border);
@@ -410,6 +415,73 @@ h1 {
   font-weight: 700;
 }
 
+.portfolio-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr);
+}
+
+.portfolio-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(22, 24, 29, 0.04);
+  padding: 22px;
+}
+
+.preview-panel {
+  min-height: 420px;
+}
+
+.checkbox-list {
+  display: grid;
+  gap: 10px;
+}
+
+.checkbox-row {
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 14px;
+}
+
+.checkbox-row:hover {
+  border-color: var(--accent);
+}
+
+.checkbox-row input {
+  margin-top: 3px;
+}
+
+.checkbox-row strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.checkbox-row small {
+  color: var(--muted);
+  display: block;
+  line-height: 1.4;
+}
+
+.portfolio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.preview-placeholder {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
 @media (max-width: 760px) {
   .page {
     padding: 28px 18px;
@@ -436,6 +508,10 @@ h1 {
   }
 
   .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-layout {
     grid-template-columns: 1fr;
   }
 }

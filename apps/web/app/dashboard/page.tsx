@@ -40,6 +40,9 @@ export default function DashboardPage() {
           <a className="brand" href="/">
             VibeLog
           </a>
+          <Link className="button secondary" href="/dashboard/portfolio">
+            Portfolio Generator
+          </Link>
         </nav>
 
         <header className="dashboard-header dashboard-header-row">
