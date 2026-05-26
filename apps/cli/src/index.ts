@@ -559,6 +559,65 @@ function showCommand(sessionReference: string | undefined): void {
   printDetailedSession(listedSession);
 }
 
+function printTimelineSession(listedSession: ListedSession): void {
+  const { session } = listedSession;
+
+  console.log(`Timeline: ${session.analysis.feature_name}`);
+  console.log("");
+  console.log(`1. Session started`);
+  console.log(`   Date: ${session.createdAt}`);
+  console.log(`   User note: ${session.note || "(empty)"}`);
+  console.log("");
+  console.log("2. Files changed");
+  console.log(
+    formatMarkdownList(session.git.changedFiles)
+      .split("\n")
+      .map((line) => `   ${line}`)
+      .join("\n")
+  );
+  console.log("");
+  console.log("3. Session summary");
+  console.log(`   ${session.analysis.summary}`);
+  console.log("");
+  console.log("4. Risks");
+  console.log(
+    formatMarkdownList(session.analysis.risks)
+      .split("\n")
+      .map((line) => `   ${line}`)
+      .join("\n")
+  );
+  console.log("");
+  console.log("5. Todos");
+  console.log(
+    formatMarkdownList(session.analysis.todos)
+      .split("\n")
+      .map((line) => `   ${line}`)
+      .join("\n")
+  );
+  console.log("");
+  console.log("6. Portfolio text");
+  console.log(`   ${session.analysis.portfolio_text}`);
+}
+
+function replayCommand(sessionReference: string | undefined): void {
+  const repositoryRoot = getRepositoryRoot();
+  const sessions = readSessions(repositoryRoot);
+
+  if (sessions.length === 0) {
+    console.log("No VibeLog sessions found yet. Run `vibelog end` first.");
+    return;
+  }
+
+  const listedSession = findSession(sessions, sessionReference);
+
+  if (!listedSession) {
+    console.log("VibeLog session not found.");
+    return;
+  }
+
+  printTimelineSession(listedSession);
+}
+
 async function main(): Promise<void> {
   const [command, sessionReference] = process.argv.slice(2);
 
@@ -577,7 +636,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.error("Usage: vibelog end | vibelog list | vibelog show [session]");
+  if (command === "replay") {
+    replayCommand(sessionReference);
+    return;
+  }
+
+  console.error(
+    "Usage: vibelog end | vibelog list | vibelog show [session] | vibelog replay [session]"
+  );
   process.exitCode = 1;
 }
 
