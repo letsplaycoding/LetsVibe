@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync
+} from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -26,6 +32,11 @@ type Session = {
     diff: string;
   };
   analysis: Analysis;
+};
+
+type ListedSession = {
+  session: Session;
+  markdownPath: string | null;
 };
 
 function runGit(args: string[], cwd = process.cwd()): string {
@@ -362,6 +373,17 @@ function saveMarkdownLog(repositoryRoot: string, session: Session): string {
   return logPath;
 }
 
+function getMarkdownLogPath(repositoryRoot: string, session: Session): string | null {
+  const logPath = join(
+    repositoryRoot,
+    ".vibelog",
+    "logs",
+    `${session.id}-${createSlug(session.analysis.feature_name)}.md`
+  );
+
+  return existsSync(logPath) ? logPath : null;
+}
+
 function printSummary(session: Session, sessionPath: string, logPath: string): void {
   console.log("");
   console.log("VibeLog session saved");
@@ -422,6 +444,52 @@ async function endCommand(): Promise<void> {
   printSummary(session, sessionPath, logPath);
 }
 
+function readSessions(repositoryRoot: string): ListedSession[] {
+  const sessionsDir = join(repositoryRoot, ".vibelog", "sessions");
+
+  if (!existsSync(sessionsDir)) {
+    return [];
+  }
+
+  return readdirSync(sessionsDir)
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => {
+      const session = JSON.parse(
+        readFileSync(join(sessionsDir, file), "utf8")
+      ) as Session;
+
+      return {
+        session,
+        markdownPath: getMarkdownLogPath(repositoryRoot, session)
+      };
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.session.createdAt).getTime() -
+        new Date(a.session.createdAt).getTime()
+    );
+}
+
+function listCommand(): void {
+  const repositoryRoot = getRepositoryRoot();
+  const sessions = readSessions(repositoryRoot);
+
+  if (sessions.length === 0) {
+    console.log("No VibeLog sessions found yet. Run `vibelog end` first.");
+    return;
+  }
+
+  console.log("Recent VibeLog sessions");
+
+  sessions.forEach(({ session, markdownPath }, index) => {
+    console.log("");
+    console.log(`${index + 1}. ${session.analysis.feature_name}`);
+    console.log(`Created: ${session.createdAt}`);
+    console.log(`Changed files: ${session.git.changedFiles.length}`);
+    console.log(`Markdown: ${markdownPath ?? "Not found"}`);
+  });
+}
+
 async function main(): Promise<void> {
   const [command] = process.argv.slice(2);
 
@@ -430,7 +498,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.error("Usage: vibelog end");
+  if (command === "list") {
+    listCommand();
+    return;
+  }
+
+  console.error("Usage: vibelog end | vibelog list");
   process.exitCode = 1;
 }
 
