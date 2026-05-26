@@ -294,6 +294,15 @@ function createSessionId(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
+function createSlug(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || "development-session";
+}
+
 function saveSession(repositoryRoot: string, session: Session): string {
   const sessionsDir = join(repositoryRoot, ".vibelog", "sessions");
   mkdirSync(sessionsDir, { recursive: true });
@@ -304,10 +313,60 @@ function saveSession(repositoryRoot: string, session: Session): string {
   return sessionPath;
 }
 
-function printSummary(session: Session, sessionPath: string): void {
+function formatMarkdownList(items: string[]): string {
+  if (items.length === 0) {
+    return "- None";
+  }
+
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function buildMarkdownLog(session: Session): string {
+  return [
+    `# ${session.analysis.feature_name}`,
+    "",
+    "## Summary",
+    session.analysis.summary,
+    "",
+    "## User Note",
+    session.note || "(empty)",
+    "",
+    "## Changed Files",
+    formatMarkdownList(session.git.changedFiles),
+    "",
+    "## Risks",
+    formatMarkdownList(session.analysis.risks),
+    "",
+    "## Todos",
+    formatMarkdownList(session.analysis.todos),
+    "",
+    "## Portfolio Text",
+    session.analysis.portfolio_text,
+    "",
+    "## Git Status",
+    "```text",
+    session.git.status || "(clean)",
+    "```",
+    ""
+  ].join("\n");
+}
+
+function saveMarkdownLog(repositoryRoot: string, session: Session): string {
+  const logsDir = join(repositoryRoot, ".vibelog", "logs");
+  mkdirSync(logsDir, { recursive: true });
+
+  const slug = createSlug(session.analysis.feature_name);
+  const logPath = join(logsDir, `${session.id}-${slug}.md`);
+  writeFileSync(logPath, buildMarkdownLog(session), "utf8");
+
+  return logPath;
+}
+
+function printSummary(session: Session, sessionPath: string, logPath: string): void {
   console.log("");
   console.log("VibeLog session saved");
   console.log(`Session: ${sessionPath}`);
+  console.log(`Markdown: ${logPath}`);
   console.log(`Changed files: ${session.git.changedFiles.length}`);
 
   if (session.git.changedFiles.length > 0) {
@@ -359,7 +418,8 @@ async function endCommand(): Promise<void> {
   };
 
   const sessionPath = saveSession(repositoryRoot, session);
-  printSummary(session, sessionPath);
+  const logPath = saveMarkdownLog(repositoryRoot, session);
+  printSummary(session, sessionPath, logPath);
 }
 
 async function main(): Promise<void> {
