@@ -24,15 +24,24 @@ type Analysis = {
 
 type ProviderName = "mock" | "openai";
 
+type AnalysisMetadata = {
+  model: string;
+  provider: ProviderName;
+  diff_truncated: boolean;
+  analyzed_at: string;
+};
+
 type AnalysisInput = {
   note: string;
   changedFiles: string[];
   diff: string;
+  diffTruncated: boolean;
 };
 
 type AnalysisResult = {
   analysis: Analysis;
   provider: ProviderName;
+  metadata: AnalysisMetadata;
 };
 
 type AnalysisProvider = {
@@ -47,6 +56,7 @@ type Session = {
   note: string;
   tags: string[];
   provider: ProviderName;
+  metadata: AnalysisMetadata;
   git: {
     repositoryRoot: string;
     status: string;
@@ -58,9 +68,15 @@ type Session = {
 
 type RawSession = Omit<Session, "provider" | "tags" | "analysis"> & {
   provider?: ProviderName;
+  metadata?: Partial<AnalysisMetadata>;
   tags?: string[];
   analysis: Partial<Analysis>;
 };
+
+const MOCK_MODEL = "mock";
+const OPENAI_MODEL = "gpt-4.1-mini";
+const OPENAI_TEMPERATURE = 0.2;
+const MAX_OPENAI_DIFF_CHARS = 12000;
 
 type ListedSession = {
   session: Session;
@@ -176,6 +192,44 @@ function normalizeTags(tags: string[]): string[] {
   );
 }
 
+function truncateDiff(diff: string): { diff: string; diffTruncated: boolean } {
+  if (diff.length <= MAX_OPENAI_DIFF_CHARS) {
+    return {
+      diff,
+      diffTruncated: false
+    };
+  }
+
+  const lines = diff.split(/\r?\n/);
+  const selectedLines: string[] = [];
+  let currentLength = 0;
+
+  for (const line of lines) {
+    const nextLength = currentLength + line.length + 1;
+
+    if (nextLength > MAX_OPENAI_DIFF_CHARS) {
+      break;
+    }
+
+    selectedLines.push(line);
+    currentLength = nextLength;
+  }
+
+  const truncatedDiff =
+    selectedLines.length > 0
+      ? selectedLines.join("\n")
+      : diff.slice(0, MAX_OPENAI_DIFF_CHARS);
+
+  return {
+    diff: [
+      truncatedDiff,
+      "",
+      "[Diff truncated before analysis to reduce token usage.]"
+    ].join("\n"),
+    diffTruncated: true
+  };
+}
+
 function createMockAnalysis(note: string, changedFiles: string[]): Analysis {
   const workNote = note || "local development changes";
   const analysis: Analysis = {
@@ -204,6 +258,7 @@ class MockProvider implements AnalysisProvider {
 
 class OpenAIProvider implements AnalysisProvider {
   provider: ProviderName = "openai";
+  model = OPENAI_MODEL;
 
   constructor(private readonly apiKey: string) {}
 
@@ -215,12 +270,19 @@ class OpenAIProvider implements AnalysisProvider {
 async function getAnalysis(input: AnalysisInput): Promise<AnalysisResult> {
   const mockProvider = new MockProvider();
   const apiKey = getOpenAiApiKey();
+  const analyzedAt = new Date().toISOString();
 
   if (!apiKey) {
     console.log("Falling back to mock analysis");
     return {
       analysis: await mockProvider.analyze(input),
-      provider: mockProvider.provider
+      provider: mockProvider.provider,
+      metadata: {
+        model: MOCK_MODEL,
+        provider: mockProvider.provider,
+        diff_truncated: input.diffTruncated,
+        analyzed_at: analyzedAt
+      }
     };
   }
 
@@ -231,21 +293,40 @@ async function getAnalysis(input: AnalysisInput): Promise<AnalysisResult> {
 
     return {
       analysis,
-      provider: openAIProvider.provider
+      provider: openAIProvider.provider,
+      metadata: {
+        model: openAIProvider.model,
+        provider: openAIProvider.provider,
+        diff_truncated: input.diffTruncated,
+        analyzed_at: analyzedAt
+      }
     };
   } catch {
     console.log("Falling back to mock analysis");
 
     return {
       analysis: await mockProvider.analyze(input),
-      provider: mockProvider.provider
+      provider: mockProvider.provider,
+      metadata: {
+        model: MOCK_MODEL,
+        provider: mockProvider.provider,
+        diff_truncated: input.diffTruncated,
+        analyzed_at: analyzedAt
+      }
     };
   }
 }
 
 function buildAnalysisPrompt(note: string, changedFiles: string[], diff: string): string {
   return [
-    "Analyze this local coding session.",
+    "Analyze this local coding session for a developer activity log.",
+    "Return concise, specific, portfolio-ready JSON.",
+    "Infer the main feature from the user note, changed file paths, and diff.",
+    "Keep summary to 1-2 sentences.",
+    "Use risks for concrete technical risks only.",
+    "Use todos for obvious follow-up work only.",
+    "Use tags as lowercase keywords such as cli, web, dashboard, portfolio, markdown, search, timeline, readme, git, local.",
+    "Use future_improvements for meaningful next improvements, not generic advice.",
     "",
     "User note:",
     note || "(empty)",
@@ -330,7 +411,6 @@ async function analyzeSession(
   changedFiles: string[],
   diff: string
 ): Promise<Analysis> {
-  const model = process.env.OPENAI_MODEL ?? "gpt-5.4-mini";
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -338,12 +418,13 @@ async function analyzeSession(
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model,
+      model: OPENAI_MODEL,
+      temperature: OPENAI_TEMPERATURE,
       input: [
         {
           role: "system",
           content:
-            "You generate concise development logs from git data. Return only the requested JSON fields."
+            "You generate concise development logs from git data. Return only valid JSON matching the schema. Do not include markdown or commentary."
         },
         {
           role: "user",
@@ -502,6 +583,7 @@ function saveMarkdownLog(repositoryRoot: string, session: Session): string {
 }
 
 function normalizeSession(session: RawSession): Session {
+  const provider = session.provider ?? session.metadata?.provider ?? "mock";
   const analysis: Analysis = {
     feature_name: String(session.analysis.feature_name ?? "Development Session"),
     summary: String(session.analysis.summary ?? ""),
@@ -529,7 +611,15 @@ function normalizeSession(session: RawSession): Session {
 
   return {
     ...session,
-    provider: session.provider ?? "mock",
+    provider,
+    metadata: {
+      model:
+        session.metadata?.model ??
+        (provider === "openai" ? OPENAI_MODEL : MOCK_MODEL),
+      provider,
+      diff_truncated: session.metadata?.diff_truncated ?? false,
+      analyzed_at: session.metadata?.analyzed_at ?? session.createdAt
+    },
     tags,
     analysis: {
       ...analysis,
@@ -576,6 +666,8 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
   console.log(`Feature: ${session.analysis.feature_name}`);
   console.log(`Summary: ${session.analysis.summary}`);
   console.log(`Provider: ${session.provider ?? "mock"}`);
+  console.log(`Model: ${session.metadata.model}`);
+  console.log(`Diff truncated: ${session.metadata.diff_truncated ? "yes" : "no"}`);
 }
 
 async function endCommand(): Promise<void> {
@@ -591,7 +683,13 @@ async function endCommand(): Promise<void> {
     .map((file) => file.trim())
     .filter(Boolean);
   loadEnv(repositoryRoot);
-  const { analysis, provider } = await getAnalysis({ note, changedFiles, diff });
+  const analysisDiff = truncateDiff(diff);
+  const { analysis, provider, metadata } = await getAnalysis({
+    note,
+    changedFiles,
+    diff: analysisDiff.diff,
+    diffTruncated: analysisDiff.diffTruncated
+  });
   const createdAt = new Date();
   const tags = normalizeTags(
     analysis.tags.length > 0
@@ -606,6 +704,7 @@ async function endCommand(): Promise<void> {
     note,
     tags,
     provider,
+    metadata,
     git: {
       repositoryRoot,
       status,
@@ -662,6 +761,7 @@ function listCommand(): void {
     console.log(`${index + 1}. ${session.analysis.feature_name}`);
     console.log(`Created: ${session.createdAt}`);
     console.log(`Provider: ${session.provider ?? "mock"}`);
+    console.log(`Model: ${session.metadata.model}`);
     console.log(`Changed files: ${session.git.changedFiles.length}`);
     console.log(
       `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
@@ -701,6 +801,9 @@ function printDetailedSession(listedSession: ListedSession): void {
   console.log(session.analysis.feature_name);
   console.log(`Created: ${session.createdAt}`);
   console.log(`Provider: ${session.provider ?? "mock"}`);
+  console.log(`Model: ${session.metadata.model}`);
+  console.log(`Analyzed At: ${session.metadata.analyzed_at}`);
+  console.log(`Diff Truncated: ${session.metadata.diff_truncated ? "yes" : "no"}`);
   console.log(`User Note: ${session.note || "(empty)"}`);
   console.log(
     `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
@@ -754,6 +857,8 @@ function printTimelineSession(listedSession: ListedSession): void {
   console.log(`1. Session started`);
   console.log(`   Date: ${session.createdAt}`);
   console.log(`   Provider: ${session.provider ?? "mock"}`);
+  console.log(`   Model: ${session.metadata.model}`);
+  console.log(`   Diff truncated: ${session.metadata.diff_truncated ? "yes" : "no"}`);
   console.log(`   User note: ${session.note || "(empty)"}`);
   console.log(
     `   Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
