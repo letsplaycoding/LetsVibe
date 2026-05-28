@@ -211,6 +211,24 @@ h1 {
   margin: 0;
 }
 
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.tag-pill {
+  background: #eef7f6;
+  border: 1px solid #b7dfdb;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 8px;
+}
+
 .session-meta {
   display: grid;
   gap: 12px;
@@ -568,6 +586,23 @@ h1 {
   color: var(--muted);
   font-size: 14px;
   margin: -8px 0 18px;
+}
+
+.tag-filter-group {
+  margin-bottom: 24px;
+}
+
+.tag-filter-label {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.filter-tabs.compact {
+  margin-bottom: 0;
 }
 
 .timeline {

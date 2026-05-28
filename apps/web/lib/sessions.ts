@@ -7,6 +7,7 @@ export type DashboardSession = {
   featureName: string;
   summary: string;
   changedFilesCount: number;
+  tags: string[];
 };
 
 export type SessionDetail = DashboardSession & {
@@ -29,6 +30,7 @@ type RawSession = {
   id?: string;
   createdAt?: string;
   note?: string;
+  tags?: string[];
   git?: {
     changedFiles?: string[];
     status?: string;
@@ -70,6 +72,44 @@ function readMarkdownPreview(id: string, featureName: string): string | null {
   return readFileSync(markdownPath, "utf8");
 }
 
+function generateTags(rawSession: RawSession): string[] {
+  const searchableText = [
+    rawSession.analysis?.feature_name ?? "",
+    rawSession.analysis?.summary ?? "",
+    rawSession.note ?? "",
+    rawSession.git?.changedFiles?.join(" ") ?? ""
+  ]
+    .join(" ")
+    .toLowerCase();
+  const tagKeywords = [
+    "dashboard",
+    "portfolio",
+    "markdown",
+    "cli",
+    "web",
+    "readme",
+    "timeline",
+    "search",
+    "session",
+    "git",
+    "local",
+    "tags"
+  ];
+
+  return tagKeywords.filter((tag) => searchableText.includes(tag));
+}
+
+function normalizeTags(rawSession: RawSession): string[] {
+  if (Array.isArray(rawSession.tags)) {
+    return rawSession.tags
+      .map(String)
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return generateTags(rawSession);
+}
+
 function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
   const id = rawSession.id ?? file.replace(/\.json$/, "");
   const featureName = rawSession.analysis?.feature_name ?? "Development Session";
@@ -81,6 +121,7 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
     featureName,
     summary: rawSession.analysis?.summary ?? "",
     changedFilesCount: changedFiles.length,
+    tags: normalizeTags(rawSession),
     userNote: rawSession.note ?? "",
     changedFiles,
     risks: rawSession.analysis?.risks ?? [],
@@ -111,7 +152,8 @@ export function getDashboardSessions(): DashboardSession[] {
         createdAt: session.createdAt,
         featureName: session.featureName,
         summary: session.summary,
-        changedFilesCount: session.changedFilesCount
+        changedFilesCount: session.changedFilesCount,
+        tags: session.tags
       };
     })
     .sort(
@@ -141,6 +183,7 @@ export function getPortfolioSessions(): PortfolioSession[] {
         featureName: session.featureName,
         summary: session.summary,
         changedFilesCount: session.changedFilesCount,
+        tags: session.tags,
         portfolioText: session.portfolioText
       };
     })

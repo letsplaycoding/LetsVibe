@@ -25,6 +25,7 @@ type Session = {
   createdAt: string;
   command: "vibelog end";
   note: string;
+  tags: string[];
   git: {
     repositoryRoot: string;
     status: string;
@@ -314,6 +315,37 @@ function createSlug(value: string): string {
   return slug || "development-session";
 }
 
+function generateTags(
+  note: string,
+  changedFiles: string[],
+  analysis: Analysis
+): string[] {
+  const searchableText = [
+    analysis.feature_name,
+    analysis.summary,
+    note,
+    changedFiles.join(" ")
+  ]
+    .join(" ")
+    .toLowerCase();
+  const tagKeywords = [
+    "dashboard",
+    "portfolio",
+    "markdown",
+    "cli",
+    "web",
+    "readme",
+    "timeline",
+    "search",
+    "session",
+    "git",
+    "local",
+    "tags"
+  ];
+
+  return tagKeywords.filter((tag) => searchableText.includes(tag));
+}
+
 function saveSession(repositoryRoot: string, session: Session): string {
   const sessionsDir = join(repositoryRoot, ".vibelog", "sessions");
   mkdirSync(sessionsDir, { recursive: true });
@@ -344,6 +376,9 @@ function buildMarkdownLog(session: Session): string {
     "",
     "## Changed Files",
     formatMarkdownList(session.git.changedFiles),
+    "",
+    "## Tags",
+    formatMarkdownList(session.tags),
     "",
     "## Risks",
     formatMarkdownList(session.analysis.risks),
@@ -390,6 +425,9 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
   console.log(`Session: ${sessionPath}`);
   console.log(`Markdown: ${logPath}`);
   console.log(`Changed files: ${session.git.changedFiles.length}`);
+  console.log(
+    `Tags: ${session.tags.length > 0 ? session.tags.join(", ") : "None"}`
+  );
 
   if (session.git.changedFiles.length > 0) {
     for (const file of session.git.changedFiles) {
@@ -430,6 +468,7 @@ async function endCommand(): Promise<void> {
     createdAt: createdAt.toISOString(),
     command: "vibelog end",
     note,
+    tags: generateTags(note, changedFiles, analysis),
     git: {
       repositoryRoot,
       status,
@@ -486,6 +525,9 @@ function listCommand(): void {
     console.log(`${index + 1}. ${session.analysis.feature_name}`);
     console.log(`Created: ${session.createdAt}`);
     console.log(`Changed files: ${session.git.changedFiles.length}`);
+    console.log(
+      `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
+    );
     console.log(`Markdown: ${markdownPath ?? "Not found"}`);
   });
 }
@@ -521,6 +563,9 @@ function printDetailedSession(listedSession: ListedSession): void {
   console.log(session.analysis.feature_name);
   console.log(`Created: ${session.createdAt}`);
   console.log(`User Note: ${session.note || "(empty)"}`);
+  console.log(
+    `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
+  );
   console.log("");
   console.log("Summary:");
   console.log(session.analysis.summary);
@@ -567,6 +612,9 @@ function printTimelineSession(listedSession: ListedSession): void {
   console.log(`1. Session started`);
   console.log(`   Date: ${session.createdAt}`);
   console.log(`   User note: ${session.note || "(empty)"}`);
+  console.log(
+    `   Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
+  );
   console.log("");
   console.log("2. Files changed");
   console.log(

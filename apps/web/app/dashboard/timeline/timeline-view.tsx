@@ -133,6 +133,15 @@ export function TimelineView({ sessions }: TimelineViewProps) {
                     <div>
                       <h3>{session.featureName}</h3>
                       <p>{session.summary}</p>
+                      {session.tags.length > 0 ? (
+                        <div className="tag-list" aria-label="Session tags">
+                          {session.tags.map((tag) => (
+                            <span className="tag-pill" key={tag}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                       <span>{session.changedFilesCount} changed files</span>
                     </div>
                   </article>

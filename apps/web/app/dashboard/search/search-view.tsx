@@ -80,14 +80,26 @@ export function SearchView({ sessions }: SearchViewProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<SearchFilter>("all");
   const [sort, setSort] = useState<SearchSort>("newest");
+  const [tagFilter, setTagFilter] = useState("all");
+  const availableTags = useMemo(
+    () => Array.from(new Set(sessions.flatMap((session) => session.tags))).sort(),
+    [sessions]
+  );
 
   const results = useMemo(() => {
     const filteredSessions = sessions.filter(
-      (session) => matchesFilter(session, filter) && matchesQuery(session, query)
+      (session) =>
+        matchesFilter(session, filter) &&
+        matchesQuery(session, query) &&
+        (tagFilter === "all" || session.tags.includes(tagFilter))
     );
 
     return sortSessions(filteredSessions, sort);
-  }, [filter, query, sessions, sort]);
+  }, [filter, query, sessions, sort, tagFilter]);
+
+  function updateTagFilter(value: string): void {
+    setTagFilter(value);
+  }
 
   if (sessions.length === 0) {
     return <div className="empty-state">No sessions found</div>;
@@ -146,6 +158,35 @@ export function SearchView({ sessions }: SearchViewProps) {
         </button>
       </div>
 
+      {availableTags.length > 0 ? (
+        <div className="tag-filter-group">
+          <span className="tag-filter-label">Tags</span>
+          <div
+            className="filter-tabs compact"
+            role="group"
+            aria-label="Tag filters"
+          >
+            <button
+              className={tagFilter === "all" ? "active" : ""}
+              onClick={() => updateTagFilter("all")}
+              type="button"
+            >
+              All tags
+            </button>
+            {availableTags.map((tag) => (
+              <button
+                className={tagFilter === tag ? "active" : ""}
+                key={tag}
+                onClick={() => updateTagFilter(tag)}
+                type="button"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <p className="search-summary">
         Showing {results.length} of {sessions.length} sessions
       </p>
@@ -163,6 +204,15 @@ export function SearchView({ sessions }: SearchViewProps) {
               <div>
                 <h2>{session.featureName}</h2>
                 <p>{session.summary}</p>
+                {session.tags.length > 0 ? (
+                  <div className="tag-list" aria-label="Session tags">
+                    {session.tags.map((tag) => (
+                      <span className="tag-pill" key={tag}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <dl className="session-meta">
                 <div>
