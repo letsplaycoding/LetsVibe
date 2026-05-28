@@ -44,6 +44,9 @@ export default function DashboardPage() {
             <Link className="button secondary" href="/dashboard/settings">
               Settings
             </Link>
+            <Link className="button secondary" href="/dashboard/compare">
+              Compare
+            </Link>
             <Link className="button secondary" href="/dashboard/search">
               Search
             </Link>

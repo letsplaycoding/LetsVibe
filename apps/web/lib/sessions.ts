@@ -37,6 +37,8 @@ export type PortfolioSession = DashboardSession & {
 
 export type SearchSession = SessionDetail;
 
+export type CompareSession = SessionDetail;
+
 export type SettingsSummary = {
   apiKeyConfigured: boolean;
   providerStatus: "OpenAI" | "Mock";
@@ -295,6 +297,10 @@ export function getSearchSessions(): SearchSession[] {
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+}
+
+export function getCompareSessions(): CompareSession[] {
+  return getSearchSessions();
 }
 
 export function getSettingsSummary(): SettingsSummary {

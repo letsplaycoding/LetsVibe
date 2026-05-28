@@ -218,6 +218,10 @@ h1 {
   margin-top: 14px;
 }
 
+.tag-list.compact {
+  margin-top: 0;
+}
+
 .tag-pill {
   background: #eef7f6;
   border: 1px solid #b7dfdb;
@@ -341,6 +345,62 @@ h1 {
 
 .usage-grid dd {
   margin: 4px 0 0;
+}
+
+.compare-controls {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.compare-controls label {
+  display: grid;
+  gap: 8px;
+}
+
+.compare-controls span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.compare-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compare-grid.three-column {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compare-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.compare-list dt,
+.compare-files h3 {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.compare-list dd {
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.compare-files {
+  margin-top: 16px;
+}
+
+.compare-files h3 {
+  margin: 0 0 10px;
 }
 
 .code-block {
@@ -787,6 +847,12 @@ h1 {
   }
 
   .usage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-controls,
+  .compare-grid,
+  .compare-grid.three-column {
     grid-template-columns: 1fr;
   }
 
