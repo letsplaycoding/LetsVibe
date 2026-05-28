@@ -17,6 +17,10 @@ function formatRelativePath(filePath: string): string {
   return parts.at(-1) ?? filePath;
 }
 
+function formatCost(value: number): string {
+  return `$${value.toFixed(6)}`;
+}
+
 export default async function SessionPage({ params }: SessionPageProps) {
   const { id } = await params;
   const session = getDashboardSession(id);
@@ -106,6 +110,36 @@ export default async function SessionPage({ params }: SessionPageProps) {
               <article className="detail-panel wide">
                 <h2>Portfolio Text</h2>
                 <p>{session.portfolioText || "(empty)"}</p>
+              </article>
+
+              <article className="detail-panel wide">
+                <h2>AI Usage</h2>
+                <dl className="usage-grid">
+                  <div>
+                    <dt>Provider</dt>
+                    <dd>{session.aiUsage.provider}</dd>
+                  </div>
+                  <div>
+                    <dt>Model</dt>
+                    <dd>{session.aiUsage.model}</dd>
+                  </div>
+                  <div>
+                    <dt>Input tokens</dt>
+                    <dd>{session.aiUsage.inputTokens}</dd>
+                  </div>
+                  <div>
+                    <dt>Output tokens</dt>
+                    <dd>{session.aiUsage.outputTokens}</dd>
+                  </div>
+                  <div>
+                    <dt>Total tokens</dt>
+                    <dd>{session.aiUsage.totalTokens}</dd>
+                  </div>
+                  <div>
+                    <dt>Estimated cost</dt>
+                    <dd>{formatCost(session.aiUsage.estimatedCostUsd)}</dd>
+                  </div>
+                </dl>
               </article>
 
               <article className="detail-panel wide">

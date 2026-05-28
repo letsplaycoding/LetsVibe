@@ -29,6 +29,10 @@ type AnalysisMetadata = {
   provider: ProviderName;
   diff_truncated: boolean;
   analyzed_at: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
 };
 
 type AnalysisInput = {
@@ -41,12 +45,24 @@ type AnalysisInput = {
 type AnalysisResult = {
   analysis: Analysis;
   provider: ProviderName;
+  usage: TokenUsage;
   metadata: AnalysisMetadata;
+};
+
+type ProviderAnalysisResult = {
+  analysis: Analysis;
+  usage: TokenUsage;
+};
+
+type TokenUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
 };
 
 type AnalysisProvider = {
   provider: ProviderName;
-  analyze(input: AnalysisInput): Promise<Analysis>;
+  analyze(input: AnalysisInput): Promise<ProviderAnalysisResult>;
 };
 
 type Session = {
@@ -66,7 +82,7 @@ type Session = {
   analysis: Analysis;
 };
 
-type RawSession = Omit<Session, "provider" | "tags" | "analysis"> & {
+type RawSession = Omit<Session, "provider" | "metadata" | "tags" | "analysis"> & {
   provider?: ProviderName;
   metadata?: Partial<AnalysisMetadata>;
   tags?: string[];
@@ -77,6 +93,13 @@ const MOCK_MODEL = "mock";
 const OPENAI_MODEL = "gpt-4.1-mini";
 const OPENAI_TEMPERATURE = 0.2;
 const MAX_OPENAI_DIFF_CHARS = 12000;
+const GPT_4_1_MINI_INPUT_COST_PER_1M = 0.4;
+const GPT_4_1_MINI_OUTPUT_COST_PER_1M = 1.6;
+const EMPTY_USAGE: TokenUsage = {
+  input_tokens: 0,
+  output_tokens: 0,
+  total_tokens: 0
+};
 
 type ListedSession = {
   session: Session;
@@ -230,6 +253,19 @@ function truncateDiff(diff: string): { diff: string; diffTruncated: boolean } {
   };
 }
 
+function estimateCostUsd(usage: TokenUsage, provider: ProviderName): number {
+  if (provider !== "openai") {
+    return 0;
+  }
+
+  return Number(
+    (
+      (usage.input_tokens / 1_000_000) * GPT_4_1_MINI_INPUT_COST_PER_1M +
+      (usage.output_tokens / 1_000_000) * GPT_4_1_MINI_OUTPUT_COST_PER_1M
+    ).toFixed(6)
+  );
+}
+
 function createMockAnalysis(note: string, changedFiles: string[]): Analysis {
   const workNote = note || "local development changes";
   const analysis: Analysis = {
@@ -251,8 +287,11 @@ function createMockAnalysis(note: string, changedFiles: string[]): Analysis {
 class MockProvider implements AnalysisProvider {
   provider: ProviderName = "mock";
 
-  async analyze(input: AnalysisInput): Promise<Analysis> {
-    return createMockAnalysis(input.note, input.changedFiles);
+  async analyze(input: AnalysisInput): Promise<ProviderAnalysisResult> {
+    return {
+      analysis: createMockAnalysis(input.note, input.changedFiles),
+      usage: EMPTY_USAGE
+    };
   }
 }
 
@@ -262,7 +301,7 @@ class OpenAIProvider implements AnalysisProvider {
 
   constructor(private readonly apiKey: string) {}
 
-  async analyze(input: AnalysisInput): Promise<Analysis> {
+  async analyze(input: AnalysisInput): Promise<ProviderAnalysisResult> {
     return analyzeSession(this.apiKey, input.note, input.changedFiles, input.diff);
   }
 }
@@ -274,44 +313,62 @@ async function getAnalysis(input: AnalysisInput): Promise<AnalysisResult> {
 
   if (!apiKey) {
     console.log("Falling back to mock analysis");
+    const result = await mockProvider.analyze(input);
+
     return {
-      analysis: await mockProvider.analyze(input),
+      analysis: result.analysis,
       provider: mockProvider.provider,
+      usage: result.usage,
       metadata: {
         model: MOCK_MODEL,
         provider: mockProvider.provider,
         diff_truncated: input.diffTruncated,
-        analyzed_at: analyzedAt
+        analyzed_at: analyzedAt,
+        input_tokens: result.usage.input_tokens,
+        output_tokens: result.usage.output_tokens,
+        total_tokens: result.usage.total_tokens,
+        estimated_cost_usd: estimateCostUsd(result.usage, mockProvider.provider)
       }
     };
   }
 
   try {
     const openAIProvider = new OpenAIProvider(apiKey);
-    const analysis = await openAIProvider.analyze(input);
+    const result = await openAIProvider.analyze(input);
     console.log("Using OpenAI analysis");
 
     return {
-      analysis,
+      analysis: result.analysis,
       provider: openAIProvider.provider,
+      usage: result.usage,
       metadata: {
         model: openAIProvider.model,
         provider: openAIProvider.provider,
         diff_truncated: input.diffTruncated,
-        analyzed_at: analyzedAt
+        analyzed_at: analyzedAt,
+        input_tokens: result.usage.input_tokens,
+        output_tokens: result.usage.output_tokens,
+        total_tokens: result.usage.total_tokens,
+        estimated_cost_usd: estimateCostUsd(result.usage, openAIProvider.provider)
       }
     };
   } catch {
     console.log("Falling back to mock analysis");
+    const result = await mockProvider.analyze(input);
 
     return {
-      analysis: await mockProvider.analyze(input),
+      analysis: result.analysis,
       provider: mockProvider.provider,
+      usage: result.usage,
       metadata: {
         model: MOCK_MODEL,
         provider: mockProvider.provider,
         diff_truncated: input.diffTruncated,
-        analyzed_at: analyzedAt
+        analyzed_at: analyzedAt,
+        input_tokens: result.usage.input_tokens,
+        output_tokens: result.usage.output_tokens,
+        total_tokens: result.usage.total_tokens,
+        estimated_cost_usd: estimateCostUsd(result.usage, mockProvider.provider)
       }
     };
   }
@@ -385,6 +442,40 @@ function extractResponseText(responseJson: unknown): string {
   return "";
 }
 
+function getNumberProperty(value: unknown, key: string): number {
+  if (typeof value === "object" && value !== null) {
+    const record = value as Record<string, unknown>;
+
+    if (typeof record[key] === "number") {
+      return record[key];
+    }
+  }
+
+  return 0;
+}
+
+function extractUsage(responseJson: unknown): TokenUsage {
+  if (
+    typeof responseJson !== "object" ||
+    responseJson === null ||
+    !("usage" in responseJson)
+  ) {
+    return EMPTY_USAGE;
+  }
+
+  const usage = responseJson.usage;
+  const inputTokens = getNumberProperty(usage, "input_tokens");
+  const outputTokens = getNumberProperty(usage, "output_tokens");
+  const totalTokens =
+    getNumberProperty(usage, "total_tokens") || inputTokens + outputTokens;
+
+  return {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    total_tokens: totalTokens
+  };
+}
+
 function parseAnalysis(responseText: string): Analysis {
   const parsed = JSON.parse(responseText) as Partial<Analysis>;
   const analysis: Analysis = {
@@ -410,7 +501,7 @@ async function analyzeSession(
   note: string,
   changedFiles: string[],
   diff: string
-): Promise<Analysis> {
+): Promise<ProviderAnalysisResult> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -501,7 +592,10 @@ async function analyzeSession(
     throw new Error("OpenAI response did not include analysis text.");
   }
 
-  return parseAnalysis(responseText);
+  return {
+    analysis: parseAnalysis(responseText),
+    usage: extractUsage(responseJson)
+  };
 }
 
 function createSessionId(date: Date): string {
@@ -618,7 +712,11 @@ function normalizeSession(session: RawSession): Session {
         (provider === "openai" ? OPENAI_MODEL : MOCK_MODEL),
       provider,
       diff_truncated: session.metadata?.diff_truncated ?? false,
-      analyzed_at: session.metadata?.analyzed_at ?? session.createdAt
+      analyzed_at: session.metadata?.analyzed_at ?? session.createdAt,
+      input_tokens: session.metadata?.input_tokens ?? 0,
+      output_tokens: session.metadata?.output_tokens ?? 0,
+      total_tokens: session.metadata?.total_tokens ?? 0,
+      estimated_cost_usd: session.metadata?.estimated_cost_usd ?? 0
     },
     tags,
     analysis: {
@@ -668,6 +766,8 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
   console.log(`Provider: ${session.provider ?? "mock"}`);
   console.log(`Model: ${session.metadata.model}`);
   console.log(`Diff truncated: ${session.metadata.diff_truncated ? "yes" : "no"}`);
+  console.log(`Tokens: ${session.metadata.total_tokens}`);
+  console.log(`Estimated cost: $${session.metadata.estimated_cost_usd.toFixed(6)}`);
 }
 
 async function endCommand(): Promise<void> {
@@ -762,6 +862,8 @@ function listCommand(): void {
     console.log(`Created: ${session.createdAt}`);
     console.log(`Provider: ${session.provider ?? "mock"}`);
     console.log(`Model: ${session.metadata.model}`);
+    console.log(`Tokens: ${session.metadata.total_tokens}`);
+    console.log(`Estimated cost: $${session.metadata.estimated_cost_usd.toFixed(6)}`);
     console.log(`Changed files: ${session.git.changedFiles.length}`);
     console.log(
       `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
@@ -804,6 +906,10 @@ function printDetailedSession(listedSession: ListedSession): void {
   console.log(`Model: ${session.metadata.model}`);
   console.log(`Analyzed At: ${session.metadata.analyzed_at}`);
   console.log(`Diff Truncated: ${session.metadata.diff_truncated ? "yes" : "no"}`);
+  console.log(`Input Tokens: ${session.metadata.input_tokens}`);
+  console.log(`Output Tokens: ${session.metadata.output_tokens}`);
+  console.log(`Total Tokens: ${session.metadata.total_tokens}`);
+  console.log(`Estimated Cost: $${session.metadata.estimated_cost_usd.toFixed(6)}`);
   console.log(`User Note: ${session.note || "(empty)"}`);
   console.log(
     `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
@@ -859,6 +965,8 @@ function printTimelineSession(listedSession: ListedSession): void {
   console.log(`   Provider: ${session.provider ?? "mock"}`);
   console.log(`   Model: ${session.metadata.model}`);
   console.log(`   Diff truncated: ${session.metadata.diff_truncated ? "yes" : "no"}`);
+  console.log(`   Tokens: ${session.metadata.total_tokens}`);
+  console.log(`   Estimated cost: $${session.metadata.estimated_cost_usd.toFixed(6)}`);
   console.log(`   User note: ${session.note || "(empty)"}`);
   console.log(
     `   Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`

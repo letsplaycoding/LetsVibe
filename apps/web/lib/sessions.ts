@@ -16,8 +16,18 @@ export type SessionDetail = DashboardSession & {
   risks: string[];
   todos: string[];
   portfolioText: string;
+  aiUsage: AiUsage;
   gitStatus: string;
   markdownPreview: string | null;
+};
+
+export type AiUsage = {
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
 };
 
 export type PortfolioSession = DashboardSession & {
@@ -31,6 +41,15 @@ type RawSession = {
   createdAt?: string;
   note?: string;
   tags?: string[];
+  provider?: string;
+  metadata?: {
+    model?: string;
+    provider?: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    estimated_cost_usd?: number;
+  };
   git?: {
     changedFiles?: string[];
     status?: string;
@@ -141,6 +160,14 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
     risks: rawSession.analysis?.risks ?? [],
     todos: rawSession.analysis?.todos ?? [],
     portfolioText: rawSession.analysis?.portfolio_text ?? "",
+    aiUsage: {
+      provider: rawSession.metadata?.provider ?? rawSession.provider ?? "mock",
+      model: rawSession.metadata?.model ?? "mock",
+      inputTokens: rawSession.metadata?.input_tokens ?? 0,
+      outputTokens: rawSession.metadata?.output_tokens ?? 0,
+      totalTokens: rawSession.metadata?.total_tokens ?? 0,
+      estimatedCostUsd: rawSession.metadata?.estimated_cost_usd ?? 0
+    },
     gitStatus: rawSession.git?.status ?? "",
     markdownPreview: readMarkdownPreview(id, featureName)
   };

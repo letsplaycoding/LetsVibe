@@ -321,6 +321,24 @@ h1 {
   padding-left: 20px;
 }
 
+.usage-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.usage-grid dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.usage-grid dd {
+  margin: 4px 0 0;
+}
+
 .code-block {
   background: #0f172a;
   border: 1px solid #1e293b;
@@ -704,6 +722,10 @@ h1 {
   }
 
   .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-grid {
     grid-template-columns: 1fr;
   }
 
