@@ -40,7 +40,9 @@ type RawSession = {
     summary?: string;
     risks?: string[];
     todos?: string[];
+    tags?: string[];
     portfolio_text?: string;
+    future_improvements?: string[];
   };
 };
 
@@ -101,13 +103,25 @@ function generateTags(rawSession: RawSession): string[] {
 
 function normalizeTags(rawSession: RawSession): string[] {
   if (Array.isArray(rawSession.tags)) {
-    return rawSession.tags
-      .map(String)
-      .map((tag) => tag.trim().toLowerCase())
-      .filter(Boolean);
+    return normalizeTagValues(rawSession.tags);
+  }
+
+  if (Array.isArray(rawSession.analysis?.tags)) {
+    return normalizeTagValues(rawSession.analysis.tags);
   }
 
   return generateTags(rawSession);
+}
+
+function normalizeTagValues(tags: string[]): string[] {
+  return Array.from(
+    new Set(
+      tags
+      .map(String)
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean)
+    )
+  );
 }
 
 function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {

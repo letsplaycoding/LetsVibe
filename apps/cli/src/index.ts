@@ -17,7 +17,27 @@ type Analysis = {
   summary: string;
   risks: string[];
   todos: string[];
+  tags: string[];
   portfolio_text: string;
+  future_improvements: string[];
+};
+
+type ProviderName = "mock" | "openai";
+
+type AnalysisInput = {
+  note: string;
+  changedFiles: string[];
+  diff: string;
+};
+
+type AnalysisResult = {
+  analysis: Analysis;
+  provider: ProviderName;
+};
+
+type AnalysisProvider = {
+  provider: ProviderName;
+  analyze(input: AnalysisInput): Promise<Analysis>;
 };
 
 type Session = {
@@ -26,6 +46,7 @@ type Session = {
   command: "vibelog end";
   note: string;
   tags: string[];
+  provider: ProviderName;
   git: {
     repositoryRoot: string;
     status: string;
@@ -33,6 +54,12 @@ type Session = {
     diff: string;
   };
   analysis: Analysis;
+};
+
+type RawSession = Omit<Session, "provider" | "tags" | "analysis"> & {
+  provider?: ProviderName;
+  tags?: string[];
+  analysis: Partial<Analysis>;
 };
 
 type ListedSession = {
@@ -112,35 +139,107 @@ function getOpenAiApiKey(): string | null {
   return apiKey;
 }
 
+function generateTags(note: string, changedFiles: string[], analysis: Analysis): string[] {
+  const searchableText = [
+    analysis.feature_name,
+    analysis.summary,
+    note,
+    changedFiles.join(" ")
+  ]
+    .join(" ")
+    .toLowerCase();
+  const tagKeywords = [
+    "dashboard",
+    "portfolio",
+    "markdown",
+    "cli",
+    "web",
+    "readme",
+    "timeline",
+    "search",
+    "session",
+    "git",
+    "local",
+    "tags"
+  ];
+
+  return tagKeywords.filter((tag) => searchableText.includes(tag));
+}
+
+function normalizeTags(tags: string[]): string[] {
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => tag.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
 function createMockAnalysis(note: string, changedFiles: string[]): Analysis {
   const workNote = note || "local development changes";
-
-  return {
+  const analysis: Analysis = {
     feature_name: "Development Session",
     summary: `Worked on ${workNote}. Changed ${changedFiles.length} files.`,
     risks: [],
     todos: [],
-    portfolio_text: "Implemented local development changes."
+    tags: [],
+    portfolio_text: "Implemented local development changes.",
+    future_improvements: []
+  };
+
+  return {
+    ...analysis,
+    tags: generateTags(note, changedFiles, analysis)
   };
 }
 
-async function getAnalysis(
-  note: string,
-  changedFiles: string[],
-  diff: string
-): Promise<Analysis> {
+class MockProvider implements AnalysisProvider {
+  provider: ProviderName = "mock";
+
+  async analyze(input: AnalysisInput): Promise<Analysis> {
+    return createMockAnalysis(input.note, input.changedFiles);
+  }
+}
+
+class OpenAIProvider implements AnalysisProvider {
+  provider: ProviderName = "openai";
+
+  constructor(private readonly apiKey: string) {}
+
+  async analyze(input: AnalysisInput): Promise<Analysis> {
+    return analyzeSession(this.apiKey, input.note, input.changedFiles, input.diff);
+  }
+}
+
+async function getAnalysis(input: AnalysisInput): Promise<AnalysisResult> {
+  const mockProvider = new MockProvider();
   const apiKey = getOpenAiApiKey();
 
   if (!apiKey) {
-    console.log("Using mock AI analysis");
-    return createMockAnalysis(note, changedFiles);
+    console.log("Falling back to mock analysis");
+    return {
+      analysis: await mockProvider.analyze(input),
+      provider: mockProvider.provider
+    };
   }
 
   try {
-    return await analyzeSession(apiKey, note, changedFiles, diff);
+    const openAIProvider = new OpenAIProvider(apiKey);
+    const analysis = await openAIProvider.analyze(input);
+    console.log("Using OpenAI analysis");
+
+    return {
+      analysis,
+      provider: openAIProvider.provider
+    };
   } catch {
-    console.log("Using mock AI analysis");
-    return createMockAnalysis(note, changedFiles);
+    console.log("Falling back to mock analysis");
+
+    return {
+      analysis: await mockProvider.analyze(input),
+      provider: mockProvider.provider
+    };
   }
 }
 
@@ -207,13 +306,21 @@ function extractResponseText(responseJson: unknown): string {
 
 function parseAnalysis(responseText: string): Analysis {
   const parsed = JSON.parse(responseText) as Partial<Analysis>;
-
-  return {
-    feature_name: String(parsed.feature_name ?? ""),
+  const analysis: Analysis = {
+    feature_name: String(parsed.feature_name ?? "Development Session"),
     summary: String(parsed.summary ?? ""),
     risks: Array.isArray(parsed.risks) ? parsed.risks.map(String) : [],
     todos: Array.isArray(parsed.todos) ? parsed.todos.map(String) : [],
-    portfolio_text: String(parsed.portfolio_text ?? "")
+    tags: Array.isArray(parsed.tags) ? normalizeTags(parsed.tags.map(String)) : [],
+    portfolio_text: String(parsed.portfolio_text ?? ""),
+    future_improvements: Array.isArray(parsed.future_improvements)
+      ? parsed.future_improvements.map(String)
+      : []
+  };
+
+  return {
+    ...analysis,
+    tags: analysis.tags.length > 0 ? analysis.tags : generateTags("", [], analysis)
   };
 }
 
@@ -256,7 +363,9 @@ async function analyzeSession(
               "summary",
               "risks",
               "todos",
-              "portfolio_text"
+              "tags",
+              "portfolio_text",
+              "future_improvements"
             ],
             properties: {
               feature_name: {
@@ -277,8 +386,20 @@ async function analyzeSession(
                   type: "string"
                 }
               },
+              tags: {
+                type: "array",
+                items: {
+                  type: "string"
+                }
+              },
               portfolio_text: {
                 type: "string"
+              },
+              future_improvements: {
+                type: "array",
+                items: {
+                  type: "string"
+                }
               }
             }
           }
@@ -313,37 +434,6 @@ function createSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 
   return slug || "development-session";
-}
-
-function generateTags(
-  note: string,
-  changedFiles: string[],
-  analysis: Analysis
-): string[] {
-  const searchableText = [
-    analysis.feature_name,
-    analysis.summary,
-    note,
-    changedFiles.join(" ")
-  ]
-    .join(" ")
-    .toLowerCase();
-  const tagKeywords = [
-    "dashboard",
-    "portfolio",
-    "markdown",
-    "cli",
-    "web",
-    "readme",
-    "timeline",
-    "search",
-    "session",
-    "git",
-    "local",
-    "tags"
-  ];
-
-  return tagKeywords.filter((tag) => searchableText.includes(tag));
 }
 
 function saveSession(repositoryRoot: string, session: Session): string {
@@ -389,6 +479,9 @@ function buildMarkdownLog(session: Session): string {
     "## Portfolio Text",
     session.analysis.portfolio_text,
     "",
+    "## Future Improvements",
+    formatMarkdownList(session.analysis.future_improvements ?? []),
+    "",
     "## Git Status",
     "```text",
     session.git.status || "(clean)",
@@ -406,6 +499,43 @@ function saveMarkdownLog(repositoryRoot: string, session: Session): string {
   writeFileSync(logPath, buildMarkdownLog(session), "utf8");
 
   return logPath;
+}
+
+function normalizeSession(session: RawSession): Session {
+  const analysis: Analysis = {
+    feature_name: String(session.analysis.feature_name ?? "Development Session"),
+    summary: String(session.analysis.summary ?? ""),
+    risks: Array.isArray(session.analysis.risks)
+      ? session.analysis.risks.map(String)
+      : [],
+    todos: Array.isArray(session.analysis.todos)
+      ? session.analysis.todos.map(String)
+      : [],
+    tags: Array.isArray(session.analysis.tags)
+      ? normalizeTags(session.analysis.tags.map(String))
+      : [],
+    portfolio_text: String(session.analysis.portfolio_text ?? ""),
+    future_improvements: Array.isArray(session.analysis.future_improvements)
+      ? session.analysis.future_improvements.map(String)
+      : []
+  };
+  const tags = normalizeTags(
+    Array.isArray(session.tags) && session.tags.length > 0
+      ? session.tags
+      : analysis.tags.length > 0
+        ? analysis.tags
+        : generateTags(session.note, session.git.changedFiles, analysis)
+  );
+
+  return {
+    ...session,
+    provider: session.provider ?? "mock",
+    tags,
+    analysis: {
+      ...analysis,
+      tags
+    }
+  };
 }
 
 function getMarkdownLogPath(repositoryRoot: string, session: Session): string | null {
@@ -445,6 +575,7 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
   console.log("Analysis:");
   console.log(`Feature: ${session.analysis.feature_name}`);
   console.log(`Summary: ${session.analysis.summary}`);
+  console.log(`Provider: ${session.provider ?? "mock"}`);
 }
 
 async function endCommand(): Promise<void> {
@@ -460,15 +591,21 @@ async function endCommand(): Promise<void> {
     .map((file) => file.trim())
     .filter(Boolean);
   loadEnv(repositoryRoot);
-  const analysis = await getAnalysis(note, changedFiles, diff);
+  const { analysis, provider } = await getAnalysis({ note, changedFiles, diff });
   const createdAt = new Date();
+  const tags = normalizeTags(
+    analysis.tags.length > 0
+      ? analysis.tags
+      : generateTags(note, changedFiles, analysis)
+  );
 
   const session: Session = {
     id: createSessionId(createdAt),
     createdAt: createdAt.toISOString(),
     command: "vibelog end",
     note,
-    tags: generateTags(note, changedFiles, analysis),
+    tags,
+    provider,
     git: {
       repositoryRoot,
       status,
@@ -493,9 +630,9 @@ function readSessions(repositoryRoot: string): ListedSession[] {
   return readdirSync(sessionsDir)
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
-      const session = JSON.parse(
+      const session = normalizeSession(JSON.parse(
         readFileSync(join(sessionsDir, file), "utf8")
-      ) as Session;
+      ) as RawSession);
 
       return {
         session,
@@ -524,6 +661,7 @@ function listCommand(): void {
     console.log("");
     console.log(`${index + 1}. ${session.analysis.feature_name}`);
     console.log(`Created: ${session.createdAt}`);
+    console.log(`Provider: ${session.provider ?? "mock"}`);
     console.log(`Changed files: ${session.git.changedFiles.length}`);
     console.log(
       `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
@@ -562,6 +700,7 @@ function printDetailedSession(listedSession: ListedSession): void {
 
   console.log(session.analysis.feature_name);
   console.log(`Created: ${session.createdAt}`);
+  console.log(`Provider: ${session.provider ?? "mock"}`);
   console.log(`User Note: ${session.note || "(empty)"}`);
   console.log(
     `Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
@@ -581,6 +720,9 @@ function printDetailedSession(listedSession: ListedSession): void {
   console.log("");
   console.log("Portfolio Text:");
   console.log(session.analysis.portfolio_text);
+  console.log("");
+  console.log("Future Improvements:");
+  console.log(formatMarkdownList(session.analysis.future_improvements ?? []));
   console.log("");
   console.log(`Markdown: ${markdownPath ?? "Not found"}`);
 }
@@ -611,6 +753,7 @@ function printTimelineSession(listedSession: ListedSession): void {
   console.log("");
   console.log(`1. Session started`);
   console.log(`   Date: ${session.createdAt}`);
+  console.log(`   Provider: ${session.provider ?? "mock"}`);
   console.log(`   User note: ${session.note || "(empty)"}`);
   console.log(
     `   Tags: ${session.tags?.length > 0 ? session.tags.join(", ") : "None"}`
@@ -645,6 +788,14 @@ function printTimelineSession(listedSession: ListedSession): void {
   console.log("");
   console.log("6. Portfolio text");
   console.log(`   ${session.analysis.portfolio_text}`);
+  console.log("");
+  console.log("7. Future improvements");
+  console.log(
+    formatMarkdownList(session.analysis.future_improvements ?? [])
+      .split("\n")
+      .map((line) => `   ${line}`)
+      .join("\n")
+  );
 }
 
 function replayCommand(sessionReference: string | undefined): void {
