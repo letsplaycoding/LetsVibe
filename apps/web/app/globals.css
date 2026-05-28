@@ -328,6 +328,10 @@ h1 {
   margin: 0;
 }
 
+.usage-grid.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .usage-grid dt {
   color: var(--muted);
   font-size: 12px;

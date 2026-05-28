@@ -36,6 +36,17 @@ export type PortfolioSession = DashboardSession & {
 
 export type SearchSession = SessionDetail;
 
+export type SettingsSummary = {
+  apiKeyConfigured: boolean;
+  providerStatus: "OpenAI" | "Mock";
+  modelName: string;
+  totalSessions: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  estimatedTotalCostUsd: number;
+};
+
 type RawSession = {
   id?: string;
   createdAt?: string;
@@ -67,6 +78,66 @@ type RawSession = {
 
 function getRepositoryRoot(): string {
   return join(process.cwd(), "..", "..");
+}
+
+function getSessionsDir(): string {
+  return join(getRepositoryRoot(), ".vibelog", "sessions");
+}
+
+function readRawSessions(): RawSession[] {
+  const sessionsDir = getSessionsDir();
+
+  if (!existsSync(sessionsDir)) {
+    return [];
+  }
+
+  return readdirSync(sessionsDir)
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => {
+      return JSON.parse(readFileSync(join(sessionsDir, file), "utf8")) as RawSession;
+    });
+}
+
+function readEnvValue(key: string): string | null {
+  const envValue = process.env[key]?.trim();
+
+  if (envValue) {
+    return envValue;
+  }
+
+  const envPath = join(getRepositoryRoot(), ".env");
+
+  if (!existsSync(envPath)) {
+    return null;
+  }
+
+  const lines = readFileSync(envPath, "utf8").split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const name = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed
+      .slice(separatorIndex + 1)
+      .trim()
+      .replace(/^["']|["']$/g, "");
+
+    if (name === key && value) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function createSlug(value: string): string {
@@ -174,19 +245,9 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
 }
 
 export function getDashboardSessions(): DashboardSession[] {
-  const sessionsDir = join(getRepositoryRoot(), ".vibelog", "sessions");
-
-  if (!existsSync(sessionsDir)) {
-    return [];
-  }
-
-  return readdirSync(sessionsDir)
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => {
-      const rawSession = JSON.parse(
-        readFileSync(join(sessionsDir, file), "utf8")
-      ) as RawSession;
-      const session = toSessionDetail(rawSession, file);
+  return readRawSessions()
+    .map((rawSession) => {
+      const session = toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`);
 
       return {
         id: session.id,
@@ -204,19 +265,9 @@ export function getDashboardSessions(): DashboardSession[] {
 }
 
 export function getPortfolioSessions(): PortfolioSession[] {
-  const sessionsDir = join(getRepositoryRoot(), ".vibelog", "sessions");
-
-  if (!existsSync(sessionsDir)) {
-    return [];
-  }
-
-  return readdirSync(sessionsDir)
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => {
-      const rawSession = JSON.parse(
-        readFileSync(join(sessionsDir, file), "utf8")
-      ) as RawSession;
-      const session = toSessionDetail(rawSession, file);
+  return readRawSessions()
+    .map((rawSession) => {
+      const session = toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`);
 
       return {
         id: session.id,
@@ -235,25 +286,47 @@ export function getPortfolioSessions(): PortfolioSession[] {
 }
 
 export function getSearchSessions(): SearchSession[] {
-  const sessionsDir = join(getRepositoryRoot(), ".vibelog", "sessions");
-
-  if (!existsSync(sessionsDir)) {
-    return [];
-  }
-
-  return readdirSync(sessionsDir)
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => {
-      const rawSession = JSON.parse(
-        readFileSync(join(sessionsDir, file), "utf8")
-      ) as RawSession;
-
-      return toSessionDetail(rawSession, file);
-    })
+  return readRawSessions()
+    .map((rawSession) => toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`))
     .sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+}
+
+export function getSettingsSummary(): SettingsSummary {
+  const sessions = readRawSessions().map((rawSession) =>
+    toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`)
+  );
+  const apiKeyConfigured = readEnvValue("OPENAI_API_KEY") !== null;
+  const totals = sessions.reduce(
+    (usage, session) => {
+      return {
+        inputTokens: usage.inputTokens + session.aiUsage.inputTokens,
+        outputTokens: usage.outputTokens + session.aiUsage.outputTokens,
+        totalTokens: usage.totalTokens + session.aiUsage.totalTokens,
+        estimatedCostUsd:
+          usage.estimatedCostUsd + session.aiUsage.estimatedCostUsd
+      };
+    },
+    {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      estimatedCostUsd: 0
+    }
+  );
+
+  return {
+    apiKeyConfigured,
+    providerStatus: apiKeyConfigured ? "OpenAI" : "Mock",
+    modelName: apiKeyConfigured ? "gpt-4.1-mini" : "mock",
+    totalSessions: sessions.length,
+    totalInputTokens: totals.inputTokens,
+    totalOutputTokens: totals.outputTokens,
+    totalTokens: totals.totalTokens,
+    estimatedTotalCostUsd: Number(totals.estimatedCostUsd.toFixed(6))
+  };
 }
 
 export function getDashboardSession(id: string): SessionDetail | null {
