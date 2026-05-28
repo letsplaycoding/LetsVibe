@@ -18,6 +18,7 @@ export type SessionDetail = DashboardSession & {
   portfolioText: string;
   aiUsage: AiUsage;
   gitStatus: string;
+  gitDiff: string;
   markdownPreview: string | null;
 };
 
@@ -64,6 +65,7 @@ type RawSession = {
   git?: {
     changedFiles?: string[];
     status?: string;
+    diff?: string;
   };
   analysis?: {
     feature_name?: string;
@@ -240,6 +242,7 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
       estimatedCostUsd: rawSession.metadata?.estimated_cost_usd ?? 0
     },
     gitStatus: rawSession.git?.status ?? "",
+    gitDiff: rawSession.git?.diff ?? "",
     markdownPreview: readMarkdownPreview(id, featureName)
   };
 }

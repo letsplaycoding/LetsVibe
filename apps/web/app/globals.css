@@ -360,6 +360,63 @@ h1 {
   font-size: 13px;
 }
 
+.diff-viewer {
+  display: grid;
+  gap: 14px;
+}
+
+.diff-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.diff-code {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  color: #d8dee9;
+  margin: 0;
+  max-height: 520px;
+  overflow: auto;
+  padding: 0;
+}
+
+.diff-code code {
+  display: block;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  min-width: max-content;
+}
+
+.diff-line {
+  display: block;
+  padding: 0 14px;
+  white-space: pre;
+}
+
+.diff-file {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.diff-hunk {
+  background: #172554;
+  color: #bfdbfe;
+}
+
+.diff-addition {
+  background: #052e1b;
+  color: #bbf7d0;
+}
+
+.diff-deletion {
+  background: #450a0a;
+  color: #fecaca;
+}
+
 .markdown-preview {
   color: var(--foreground);
   line-height: 1.6;

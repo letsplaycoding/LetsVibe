@@ -2,6 +2,7 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getDashboardSession } from "../../../../lib/sessions";
+import { DiffViewer } from "./diff-viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +148,11 @@ export default async function SessionPage({ params }: SessionPageProps) {
                 <pre className="code-block">
                   <code>{session.gitStatus || "(clean)"}</code>
                 </pre>
+              </article>
+
+              <article className="detail-panel wide">
+                <h2>Git Diff</h2>
+                <DiffViewer diff={session.gitDiff} />
               </article>
 
               <article className="detail-panel wide">
