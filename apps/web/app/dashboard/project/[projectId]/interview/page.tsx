@@ -34,8 +34,9 @@ export default async function InterviewPage({ params }: InterviewPageProps) {
           <div>
             <h1>Interview Mode</h1>
             <p>
-              Generate grounded interview questions and answers from this
-              project's local development history.
+              Practice project interviews with generated questions, suggested
+              answers, follow-ups, key points, mistakes to avoid, and answer
+              evaluation.
             </p>
             <p className="project-label">
               Current project: {project.projectName} ({project.projectId})

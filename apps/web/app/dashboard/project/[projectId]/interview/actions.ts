@@ -16,16 +16,28 @@ import {
 } from "../../../../../lib/sessions";
 
 export type InterviewCategory =
-  | "General project"
-  | "Technical design"
+  | "Project overview"
   | "Architecture"
-  | "Tradeoff"
-  | "Future improvement";
+  | "Technical decisions"
+  | "Tradeoffs"
+  | "Challenges"
+  | "Future improvements";
 
 export type InterviewQuestion = {
-  answer: string;
   category: InterviewCategory;
   question: string;
+  suggestedAnswer: string;
+  followUpQuestions: string[];
+  keyPoints: string[];
+  commonMistakes: string[];
+};
+
+export type InterviewEvaluation = {
+  score: number;
+  strengths: string[];
+  improvements: string[];
+  improvedAnswerExample: string;
+  provider: "openai" | "mock";
 };
 
 type InterviewResult = {
@@ -41,6 +53,15 @@ type OpenAIChatResponse = {
     };
   }>;
 };
+
+const CATEGORIES: InterviewCategory[] = [
+  "Project overview",
+  "Architecture",
+  "Technical decisions",
+  "Tradeoffs",
+  "Challenges",
+  "Future improvements"
+];
 
 function getRepositoryRoot(): string {
   return join(process.cwd(), "..", "..");
@@ -98,13 +119,28 @@ function uniqueValues(values: string[]): string[] {
   );
 }
 
+function formatList(items: string[]): string {
+  return items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None";
+}
+
 function formatQuestionMarkdown(question: InterviewQuestion): string {
   return [
-    `### ${question.category}`,
+    `## ${question.category}`,
     "",
-    `**Q: ${question.question}**`,
+    `### Question`,
+    question.question,
     "",
-    question.answer,
+    "### Suggested Answer",
+    question.suggestedAnswer,
+    "",
+    "### Follow-up Questions",
+    formatList(question.followUpQuestions),
+    "",
+    "### Key Points to Mention",
+    formatList(question.keyPoints),
+    "",
+    "### Common Mistakes to Avoid",
+    formatList(question.commonMistakes),
     ""
   ].join("\n");
 }
@@ -114,173 +150,151 @@ function buildMarkdown(
   questions: InterviewQuestion[]
 ): string {
   return [
-    `# ${projectName} Interview Set`,
+    `# ${projectName} Interview Prep`,
     "",
     ...questions.map(formatQuestionMarkdown)
   ].join("\n");
 }
 
+function summarizeSessions(sessions: SearchSession[]): {
+  totalChangedFiles: number;
+  tags: string[];
+  largestSession: SearchSession | undefined;
+  recentFeatures: string;
+} {
+  return {
+    totalChangedFiles: sessions.reduce(
+      (total, session) => total + session.changedFilesCount,
+      0
+    ),
+    tags: uniqueValues(sessions.flatMap((session) => session.tags)),
+    largestSession: [...sessions].sort(
+      (a, b) => b.changedFilesCount - a.changedFilesCount
+    )[0],
+    recentFeatures: sessions
+      .slice(0, 5)
+      .map((session) => session.featureName)
+      .join(", ")
+  };
+}
+
 function buildMockQuestions(
   projectName: string,
   sessions: SearchSession[],
-  language: AppLanguage = "en"
+  language: AppLanguage
 ): InterviewQuestion[] {
-  const totalChangedFiles = sessions.reduce(
-    (total, session) => total + session.changedFilesCount,
-    0
-  );
-  const tags = uniqueValues(sessions.flatMap((session) => session.tags));
-  const largestSession = [...sessions].sort(
-    (a, b) => b.changedFilesCount - a.changedFilesCount
-  )[0];
-  const recentFeatures = sessions
-    .slice(0, 5)
-    .map((session) => session.featureName)
-    .join(", ");
-
-  if (sessions.length === 0) {
-    if (language === "ko") {
-      return [
-        {
-          category: "General project",
-          question: "이 프로젝트는 무엇인가요?",
-          answer:
-            "아직 이 프로젝트의 로컬 세션이 없습니다. 먼저 VibeLog로 개발 세션을 기록한 뒤, 실제 구현 히스토리를 근거로 프로젝트를 설명할 수 있습니다."
-        },
-        {
-          category: "Future improvement",
-          question: "다음으로 무엇을 개선하겠습니까?",
-          answer:
-            "다음 단계는 실제 프로젝트 세션을 기록해서 이후 답변이 구체적인 구현 히스토리를 참조할 수 있게 만드는 것입니다."
-        }
-      ];
-    }
-
-    return [
-      {
-        category: "General project",
-        question: "What is this project about?",
-        answer:
-          "There are no local sessions for this project yet. I would first record development sessions with VibeLog, then use those sessions to explain the project accurately."
-      },
-      {
-        category: "Future improvement",
-        question: "What would you improve next?",
-        answer:
-          "The next step is to capture real project sessions so future answers can reference actual implementation history."
-      }
-    ];
-  }
+  const { totalChangedFiles, tags, largestSession, recentFeatures } =
+    summarizeSessions(sessions);
 
   if (language === "ko") {
-    return [
-      {
-        category: "General project",
-        question: `${projectName}를 높은 수준에서 어떻게 설명하시겠습니까?`,
-        answer: `${projectName}는 ${sessions.length}개의 기록된 세션을 통해 구축된 로컬 우선 개발 히스토리 도구입니다. Git 활동, 메모, 리스크, 할 일, AI/mock 분석을 설명 가능한 개발 히스토리와 커리어용 산출물로 변환합니다.`
-      },
-      {
-        category: "Technical design",
-        question: "주요 기술적 기여는 무엇이었나요?",
-        answer: `로컬 JSON과 Markdown 파일을 중심으로 프로젝트별 워크플로를 구축했고, 세션 뷰, 검색, 타임라인, 비교, 리포트, 스토리 생성, 채팅, 커리어 요약을 추가했습니다. 기록된 히스토리는 총 ${totalChangedFiles}개의 변경 파일을 포함합니다.`
-      },
-      {
-        category: "Architecture",
-        question: "시스템 아키텍처는 어떻게 구성되어 있나요?",
-        answer:
-          "CLI가 Git 데이터를 수집하고 로컬 세션 산출물을 기록합니다. Next.js App Router 대시보드는 해당 파일을 서버에서 읽어 프로젝트별 뷰를 렌더링합니다. 데이터베이스, 인증, 클라우드 동기화 없이 파일시스템을 기준으로 동작합니다."
-      },
-      {
-        category: "Tradeoff",
-        question: "로컬 우선 접근의 트레이드오프는 무엇인가요?",
-        answer:
-          "로컬 우선 접근은 설정을 단순하게 만들고 민감한 데이터가 기본적으로 로컬에 남게 합니다. 대신 협업과 원격 동기화는 현재 범위 밖이며, 프로젝트 데이터가 로컬 파일에 묶입니다."
-      },
-      {
-        category: "Future improvement",
-        question: "다음에는 무엇을 개선하시겠습니까?",
-        answer: `더 풍부한 프로젝트 전환, 강화된 export 템플릿, 깊은 프로젝트 인사이트를 개선하고 싶습니다. 현재 주요 주제는 ${tags.length > 0 ? tags.join(", ") : "아직 태그 없음"}입니다.`
-      }
-    ];
+    return CATEGORIES.map((category) => ({
+      category,
+      question:
+        category === "Project overview"
+          ? `${projectName}를 면접에서 어떻게 소개하시겠습니까?`
+          : `${category} 관점에서 ${projectName}를 어떻게 설명하시겠습니까?`,
+      suggestedAnswer:
+        sessions.length === 0
+          ? "아직 기록된 로컬 세션이 없습니다. 먼저 vibelog end로 개발 세션을 저장한 뒤 실제 히스토리를 근거로 답변하는 것이 좋습니다."
+          : `${projectName}는 ${sessions.length}개의 로컬 세션과 ${totalChangedFiles}개의 변경 파일을 바탕으로 발전한 로컬 우선 개발 히스토리 도구입니다. CLI가 Git 변경사항을 수집하고, Next.js 대시보드가 세션 검색, 타임라인, 리포트, 커리어 자료 생성을 제공합니다.`,
+      followUpQuestions: [
+        "이 설계를 선택한 이유는 무엇인가요?",
+        "가장 어려웠던 구현 부분은 무엇이었나요?",
+        "다음 단계에서 무엇을 개선하시겠습니까?"
+      ],
+      keyPoints: [
+        "로컬 우선 아키텍처",
+        "Git diff/status 기반 세션 수집",
+        `최근 기능: ${recentFeatures || "기록된 기능 없음"}`,
+        `주요 태그: ${tags.length > 0 ? tags.join(", ") : "기록 없음"}`
+      ],
+      commonMistakes: [
+        "실제 세션 데이터에 없는 기능을 과장하기",
+        "기술 선택의 이유를 설명하지 않기",
+        "구체적인 파일/세션 근거 없이 일반론만 말하기"
+      ]
+    }));
   }
 
-  return [
-    {
-      category: "General project",
-      question: `How would you explain ${projectName} at a high level?`,
-      answer: `${projectName} is a local-first developer history tool built across ${sessions.length} recorded sessions. It converts Git activity, notes, risks, todos, and AI/mock analysis into explainable development history and career-ready artifacts.`
-    },
-    {
-      category: "Technical design",
-      question: "What were your main technical contributions?",
-      answer: `I built project-scoped workflows around local JSON and Markdown files, including session views, search, timeline, compare, reports, story generation, chat, and career summaries. The sessions represent ${totalChangedFiles} changed files across the recorded project history.`
-    },
-    {
-      category: "Architecture",
-      question: "How is the system architected?",
-      answer:
-        "The CLI captures Git data and writes local session artifacts. The Next.js App Router dashboard reads those files server-side and renders project-aware views. The architecture avoids a database, auth, and cloud sync, keeping the filesystem as the source of truth."
-    },
-    {
-      category: "Tradeoff",
-      question: "What tradeoffs did you make by keeping it local-first?",
-      answer:
-        "The local-first approach keeps setup simple and avoids sensitive data leaving the machine by default. The tradeoff is that project data is tied to local files, so collaboration and remote sync are intentionally out of scope for now."
-    },
-    {
-      category: "Future improvement",
-      question: "What would you improve next?",
-      answer: `I would improve richer project switching, stronger export templates, and deeper project insights. The most active themes so far are ${tags.length > 0 ? tags.join(", ") : "not tagged yet"}.`
-    },
-    {
-      category: "Technical design",
-      question: "Which session had the largest implementation scope?",
-      answer: largestSession
-        ? `${largestSession.featureName} changed ${largestSession.changedFilesCount} files, making it the largest recorded session by changed-file count.`
-        : "No large session is available yet."
-    },
-    {
-      category: "General project",
-      question: "What recent features should you mention?",
-      answer: recentFeatures
-        ? `Recent features include ${recentFeatures}.`
-        : "No recent features are recorded yet."
-    }
-  ];
+  return CATEGORIES.map((category) => ({
+    category,
+    question:
+      category === "Project overview"
+        ? `How would you introduce ${projectName} in an interview?`
+        : `How would you explain ${projectName} from a ${category.toLowerCase()} perspective?`,
+    suggestedAnswer:
+      sessions.length === 0
+        ? "There are no local sessions yet. I would first record sessions with vibelog end, then answer from actual implementation history."
+        : `${projectName} is a local-first developer history tool built across ${sessions.length} recorded sessions and ${totalChangedFiles} changed files. The CLI captures Git changes, while the Next.js dashboard turns those sessions into searchable history, timelines, reports, and career-ready artifacts.`,
+    followUpQuestions: [
+      "Why did you choose this design?",
+      "What was the hardest implementation detail?",
+      "What would you improve next?"
+    ],
+    keyPoints: [
+      "Local-first architecture",
+      "Git diff/status based session capture",
+      `Recent features: ${recentFeatures || "none recorded"}`,
+      `Largest session: ${
+        largestSession
+          ? `${largestSession.featureName} (${largestSession.changedFilesCount} files)`
+          : "none recorded"
+      }`,
+      `Tags: ${tags.length > 0 ? tags.join(", ") : "none recorded"}`
+    ],
+    commonMistakes: [
+      "Inventing features not supported by session history",
+      "Skipping why the technical choices were made",
+      "Giving generic answers without project-specific evidence"
+    ]
+  }));
+}
+
+function normalizeQuestion(value: unknown): InterviewQuestion | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const category = String(record.category ?? "") as InterviewCategory;
+
+  if (!CATEGORIES.includes(category)) {
+    return null;
+  }
+
+  const question: InterviewQuestion = {
+    category,
+    question: String(record.question ?? "").trim(),
+    suggestedAnswer: String(record.suggestedAnswer ?? record.answer ?? "").trim(),
+    followUpQuestions: Array.isArray(record.followUpQuestions)
+      ? record.followUpQuestions.map(String)
+      : [],
+    keyPoints: Array.isArray(record.keyPoints) ? record.keyPoints.map(String) : [],
+    commonMistakes: Array.isArray(record.commonMistakes)
+      ? record.commonMistakes.map(String)
+      : []
+  };
+
+  return question.question && question.suggestedAnswer ? question : null;
 }
 
 function parseOpenAIQuestions(
   value: string,
   projectName: string,
-  sessions: SearchSession[]
+  sessions: SearchSession[],
+  language: AppLanguage
 ): InterviewQuestion[] {
   try {
-    const parsed = JSON.parse(value) as { questions?: InterviewQuestion[] };
-    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
-    const normalized = questions
-      .map((question) => ({
-        answer: String(question.answer ?? "").trim(),
-        category: question.category,
-        question: String(question.question ?? "").trim()
-      }))
-      .filter(
-        (question) =>
-          question.answer &&
-          question.question &&
-          [
-            "General project",
-            "Technical design",
-            "Architecture",
-            "Tradeoff",
-            "Future improvement"
-          ].includes(question.category)
-      );
+    const parsed = JSON.parse(value) as { questions?: unknown[] };
+    const questions = Array.isArray(parsed.questions)
+      ? parsed.questions.map(normalizeQuestion).filter(Boolean)
+      : [];
 
-    return normalized.length > 0
-      ? normalized
-        : buildMockQuestions(projectName, sessions);
+    return questions.length > 0
+      ? (questions as InterviewQuestion[])
+      : buildMockQuestions(projectName, sessions, language);
   } catch {
-    return buildMockQuestions(projectName, sessions);
+    return buildMockQuestions(projectName, sessions, language);
   }
 }
 
@@ -304,13 +318,14 @@ function buildPrompt(
   }));
 
   return [
-    `Generate an interview preparation set for ${projectName}.`,
+    `Generate an interactive interview preparation set for ${projectName}.`,
     getLanguageInstruction(language),
     "Use only the local VibeLog session data below.",
-    "Return only valid JSON in this shape:",
-    '{"questions":[{"category":"General project","question":"...","answer":"..."}]}',
-    "Include questions across these categories: General project, Technical design, Architecture, Tradeoff, Future improvement.",
-    "Answers must be grounded in actual project history. Say when evidence is limited.",
+    "Return only valid JSON with this exact top-level shape:",
+    '{"questions":[{"category":"Project overview","question":"...","suggestedAnswer":"...","followUpQuestions":["..."],"keyPoints":["..."],"commonMistakes":["..."]}]}',
+    `Categories must be exactly: ${CATEGORIES.join(", ")}.`,
+    "Generate one strong question per category.",
+    "Suggested answers must be grounded in actual project history. Say when evidence is limited.",
     "Do not invent database, auth, cloud sync, payments, or hosted backend details.",
     "",
     "Sessions JSON:",
@@ -360,7 +375,7 @@ async function generateWithOpenAI(
     throw new Error("OpenAI interview response was empty.");
   }
 
-  return parseOpenAIQuestions(content, projectName, sessions);
+  return parseOpenAIQuestions(content, projectName, sessions, language);
 }
 
 export async function generateInterviewSet(
@@ -406,6 +421,188 @@ export async function generateInterviewSet(
   }
 }
 
+function buildEvaluationPrompt(
+  question: InterviewQuestion,
+  answer: string,
+  sessions: SearchSession[],
+  language: AppLanguage
+): string {
+  const compactSessions = sessions.slice(0, 12).map((session) => ({
+    feature_name: session.featureName,
+    summary: session.summary,
+    changed_files_count: session.changedFilesCount,
+    tags: session.tags,
+    portfolio_text: session.portfolioText
+  }));
+
+  return [
+    "Evaluate the user's interview answer for a project-history interview.",
+    getLanguageInstruction(language),
+    "Use these criteria: clarity, technical depth, project-specific evidence, structure, interview readiness.",
+    "Return only valid JSON in this shape:",
+    '{"score":7,"strengths":["..."],"improvements":["..."],"improvedAnswerExample":"..."}',
+    "Score must be an integer from 1 to 10.",
+    "",
+    `Question: ${question.question}`,
+    "",
+    `Suggested answer context: ${question.suggestedAnswer}`,
+    "",
+    `User answer: ${answer}`,
+    "",
+    "Sessions JSON:",
+    JSON.stringify(compactSessions).slice(0, 16000)
+  ].join("\n");
+}
+
+function buildMockEvaluation(
+  answer: string,
+  question: InterviewQuestion,
+  language: AppLanguage
+): InterviewEvaluation {
+  const trimmedAnswer = answer.trim();
+  const score = Math.max(
+    4,
+    Math.min(8, Math.round(trimmedAnswer.length / 120) + 4)
+  );
+
+  if (language === "ko") {
+    return {
+      score,
+      strengths:
+        trimmedAnswer.length > 0
+          ? ["답변이 질문에 직접적으로 대응합니다.", "프로젝트 맥락을 설명하려는 방향이 있습니다."]
+          : ["평가할 답변이 아직 충분하지 않습니다."],
+      improvements: [
+        "구체적인 세션, 기능, 변경 파일 근거를 더 넣어보세요.",
+        "문제, 선택한 접근, 결과 순서로 구조화하면 더 좋습니다.",
+        "기술적 트레이드오프를 한 문장으로 명확히 말해보세요."
+      ],
+      improvedAnswerExample: `${question.suggestedAnswer} 면접에서는 여기에 실제로 구현한 세션이나 파일 예시를 하나 덧붙여 근거를 강화하겠습니다.`,
+      provider: "mock"
+    };
+  }
+
+  return {
+    score,
+    strengths:
+      trimmedAnswer.length > 0
+        ? ["The answer addresses the question directly.", "It starts to connect the response to project context."]
+        : ["There is not enough answer content to evaluate deeply yet."],
+    improvements: [
+      "Add concrete session, feature, or changed-file evidence.",
+      "Structure the answer as problem, decision, implementation, and result.",
+      "State the technical tradeoff more explicitly."
+    ],
+    improvedAnswerExample: `${question.suggestedAnswer} In an interview, I would add one concrete session or file example to make the evidence stronger.`,
+    provider: "mock"
+  };
+}
+
+function parseEvaluation(
+  value: string,
+  fallback: InterviewEvaluation
+): InterviewEvaluation {
+  try {
+    const parsed = JSON.parse(value) as Partial<InterviewEvaluation>;
+
+    return {
+      score: Math.max(1, Math.min(10, Number(parsed.score ?? fallback.score))),
+      strengths: Array.isArray(parsed.strengths)
+        ? parsed.strengths.map(String)
+        : fallback.strengths,
+      improvements: Array.isArray(parsed.improvements)
+        ? parsed.improvements.map(String)
+        : fallback.improvements,
+      improvedAnswerExample: String(
+        parsed.improvedAnswerExample ?? fallback.improvedAnswerExample
+      ),
+      provider: "openai"
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+async function evaluateWithOpenAI(
+  apiKey: string,
+  question: InterviewQuestion,
+  answer: string,
+  sessions: SearchSession[],
+  language: AppLanguage
+): Promise<InterviewEvaluation> {
+  const fallback = buildMockEvaluation(answer, question, language);
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1-mini",
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You evaluate interview answers against local project history.",
+            getLanguageInstruction(language)
+          ].join(" ")
+        },
+        {
+          role: "user",
+          content: buildEvaluationPrompt(question, answer, sessions, language)
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("OpenAI interview evaluation failed.");
+  }
+
+  const payload = (await response.json()) as OpenAIChatResponse;
+  const content = payload.choices?.[0]?.message?.content?.trim();
+
+  if (!content) {
+    throw new Error("OpenAI interview evaluation response was empty.");
+  }
+
+  return parseEvaluation(content, fallback);
+}
+
+export async function evaluateInterviewAnswer(
+  projectId: string,
+  question: InterviewQuestion,
+  answer: string,
+  languageInput: string = "en"
+): Promise<InterviewEvaluation> {
+  const project = resolveProject(projectId);
+  const language = normalizeLanguage(languageInput);
+  const normalizedAnswer = answer.trim().slice(0, 4000);
+  const sessions = getSearchSessions(project.projectId);
+  const apiKey = readEnvValue("OPENAI_API_KEY");
+
+  if (!normalizedAnswer) {
+    return buildMockEvaluation("", question, language);
+  }
+
+  if (!apiKey) {
+    return buildMockEvaluation(normalizedAnswer, question, language);
+  }
+
+  try {
+    return await evaluateWithOpenAI(
+      apiKey,
+      question,
+      normalizedAnswer,
+      sessions,
+      language
+    );
+  } catch {
+    return buildMockEvaluation(normalizedAnswer, question, language);
+  }
+}
+
 export async function exportInterviewMarkdown(
   projectId: string,
   markdown: string
@@ -419,7 +616,7 @@ export async function exportInterviewMarkdown(
 
   const filePath = join(
     interviewDir,
-    `interview-${createExportId(new Date())}.md`
+    `interview-v2-${createExportId(new Date())}.md`
   );
   await writeFile(filePath, `${markdown.trimEnd()}\n`, "utf8");
 
