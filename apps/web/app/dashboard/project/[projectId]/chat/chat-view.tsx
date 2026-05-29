@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { readStoredLanguage } from "../../../../../app/language-client";
 import { askProjectHistory } from "./actions";
 
 type ChatMessage = {
@@ -44,7 +45,11 @@ export function ChatView({ projectId, sessionCount }: ChatViewProps) {
     ]);
 
     startTransition(async () => {
-      const result = await askProjectHistory(projectId, nextQuestion);
+      const result = await askProjectHistory(
+        projectId,
+        nextQuestion,
+        readStoredLanguage()
+      );
 
       setMessages((current) => [
         ...current,

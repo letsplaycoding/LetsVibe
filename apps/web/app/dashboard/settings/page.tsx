@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LanguageSelector } from "../../language-client";
 import { getSettingsSummary } from "../../../lib/sessions";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,15 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </header>
 
         <section className="detail-grid" aria-label="Settings summary">
+          <article className="detail-panel">
+            <h2>Language</h2>
+            <p className="settings-note no-divider">
+              Choose the dashboard language. The preference is stored in this
+              browser only.
+            </p>
+            <LanguageSelector />
+          </article>
+
           <article className="detail-panel">
             <div className="panel-heading">
               <h2>AI Provider</h2>

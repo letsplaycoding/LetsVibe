@@ -424,6 +424,17 @@ h1 {
   padding-top: 14px;
 }
 
+.settings-note.no-divider {
+  border-top: 0;
+  margin-bottom: 16px;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.language-selector {
+  max-width: 260px;
+}
+
 .compare-controls {
   display: grid;
   gap: 14px;

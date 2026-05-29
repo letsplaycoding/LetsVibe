@@ -2,6 +2,11 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  getLanguageInstruction,
+  normalizeLanguage,
+  type AppLanguage
+} from "../../../../../lib/language";
 import { getSearchSessions, resolveProject, type SearchSession } from "../../../../../lib/sessions";
 
 type ChatResult = {
@@ -95,7 +100,25 @@ function formatSession(session: SearchSession): string {
   })`;
 }
 
-function buildMockAnswer(question: string, sessions: SearchSession[]): string {
+function buildMockAnswer(
+  question: string,
+  sessions: SearchSession[],
+  language: AppLanguage
+): string {
+  if (language === "ko") {
+    if (sessions.length === 0) {
+      return "아직 이 프로젝트의 세션이 없습니다. VibeLog에 로컬 세션 데이터가 쌓인 뒤 더 구체적으로 답변할 수 있습니다.";
+    }
+
+    return [
+      `이 프로젝트에는 로컬 세션 ${sessions.length}개가 있습니다.`,
+      "최근 개발 히스토리:",
+      ...sessions.slice(0, 6).map(formatSession),
+      "",
+      "주간 작업, 대시보드 관련 작업, 변경 파일이 많은 세션, 면접 답변, 기술적 하이라이트를 물어보면 더 구체적으로 답변할 수 있습니다."
+    ].join("\n");
+  }
+
   if (sessions.length === 0) {
     return "No sessions exist for this project yet, so I can only answer after VibeLog has local session data.";
   }
@@ -181,7 +204,11 @@ function buildMockAnswer(question: string, sessions: SearchSession[]): string {
   ].join("\n");
 }
 
-function buildPrompt(question: string, sessions: SearchSession[]): string {
+function buildPrompt(
+  question: string,
+  sessions: SearchSession[],
+  language: AppLanguage
+): string {
   const compactSessions = sessions.map((session) => ({
     createdAt: session.createdAt,
     feature_name: session.featureName,
@@ -198,6 +225,7 @@ function buildPrompt(question: string, sessions: SearchSession[]): string {
 
   return [
     "Answer the user's question using only the local VibeLog session data below.",
+    getLanguageInstruction(language),
     "If the sessions do not contain enough evidence, say that clearly.",
     "Keep the answer concise and practical.",
     "Do not invent database, auth, cloud sync, payments, or hosted backend details.",
@@ -212,7 +240,8 @@ function buildPrompt(question: string, sessions: SearchSession[]): string {
 async function askOpenAI(
   apiKey: string,
   question: string,
-  sessions: SearchSession[]
+  sessions: SearchSession[],
+  language: AppLanguage
 ): Promise<string> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -226,12 +255,14 @@ async function askOpenAI(
       messages: [
         {
           role: "system",
-          content:
-            "You answer questions about a project's local development history from VibeLog sessions only."
+          content: [
+            "You answer questions about a project's local development history from VibeLog sessions only.",
+            getLanguageInstruction(language)
+          ].join(" ")
         },
         {
           role: "user",
-          content: buildPrompt(question, sessions)
+          content: buildPrompt(question, sessions, language)
         }
       ]
     })
@@ -253,15 +284,20 @@ async function askOpenAI(
 
 export async function askProjectHistory(
   projectId: string,
-  question: string
+  question: string,
+  languageInput: string = "en"
 ): Promise<ChatResult> {
   const project = resolveProject(projectId);
   const normalizedQuestion = normalizeQuestion(question);
+  const language = normalizeLanguage(languageInput);
   const sessions = getSearchSessions(project.projectId);
 
   if (!normalizedQuestion) {
     return {
-      answer: "Type a question about this project's development history.",
+      answer:
+        language === "ko"
+          ? "이 프로젝트의 개발 히스토리에 대해 질문을 입력하세요."
+          : "Type a question about this project's development history.",
       provider: "mock"
     };
   }
@@ -269,7 +305,9 @@ export async function askProjectHistory(
   if (sessions.length === 0) {
     return {
       answer:
-        "No sessions exist for this project yet, so I can only answer after VibeLog has local session data.",
+        language === "ko"
+          ? "아직 이 프로젝트의 세션이 없습니다. VibeLog에 로컬 세션 데이터가 쌓인 뒤 답변할 수 있습니다."
+          : "No sessions exist for this project yet, so I can only answer after VibeLog has local session data.",
       provider: "mock"
     };
   }
@@ -278,19 +316,19 @@ export async function askProjectHistory(
 
   if (!apiKey) {
     return {
-      answer: buildMockAnswer(normalizedQuestion, sessions),
+      answer: buildMockAnswer(normalizedQuestion, sessions, language),
       provider: "mock"
     };
   }
 
   try {
     return {
-      answer: await askOpenAI(apiKey, normalizedQuestion, sessions),
+      answer: await askOpenAI(apiKey, normalizedQuestion, sessions, language),
       provider: "openai"
     };
   } catch {
     return {
-      answer: buildMockAnswer(normalizedQuestion, sessions),
+      answer: buildMockAnswer(normalizedQuestion, sessions, language),
       provider: "mock"
     };
   }

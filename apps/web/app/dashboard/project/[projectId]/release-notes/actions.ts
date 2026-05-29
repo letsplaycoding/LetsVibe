@@ -4,6 +4,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  getLanguageInstruction,
+  normalizeLanguage,
+  type AppLanguage
+} from "../../../../../lib/language";
+import {
   getCurrentProjectDir,
   getSearchSessions,
   resolveProject,
@@ -79,7 +84,8 @@ function formatSession(session: SearchSession): string {
 
 function buildMockReleaseNotes(
   projectName: string,
-  sessions: SearchSession[]
+  sessions: SearchSession[],
+  language: AppLanguage = "en"
 ): string {
   const recentSessions = sessions.slice(0, 10);
   const improved = recentSessions.filter((session) =>
@@ -98,6 +104,24 @@ function buildMockReleaseNotes(
     (session) => !improved.includes(session) && !fixed.includes(session)
   );
 
+  if (language === "ko") {
+    return [
+      `# ${projectName} 릴리스 노트`,
+      "",
+      "## 추가됨",
+      ...(added.length > 0 ? added.map(formatSession) : ["- 추가된 항목이 없습니다."]),
+      "",
+      "## 개선됨",
+      ...(improved.length > 0
+        ? improved.map(formatSession)
+        : ["- 개선된 항목이 없습니다."]),
+      "",
+      "## 수정됨",
+      ...(fixed.length > 0 ? fixed.map(formatSession) : ["- 수정된 항목이 없습니다."]),
+      ""
+    ].join("\n");
+  }
+
   return [
     `# ${projectName} Release Notes`,
     "",
@@ -115,7 +139,11 @@ function buildMockReleaseNotes(
   ].join("\n");
 }
 
-function buildPrompt(projectName: string, sessions: SearchSession[]): string {
+function buildPrompt(
+  projectName: string,
+  sessions: SearchSession[],
+  language: AppLanguage
+): string {
   const compactSessions = sessions.slice(0, 20).map((session) => ({
     createdAt: session.createdAt,
     feature_name: session.featureName,
@@ -133,6 +161,7 @@ function buildPrompt(projectName: string, sessions: SearchSession[]): string {
 
   return [
     `Generate concise Markdown release notes for ${projectName}.`,
+    getLanguageInstruction(language),
     "Use only the local VibeLog sessions below.",
     "Return Markdown only with exactly these sections: Added, Improved, Fixed.",
     "Do not invent external GitHub, auth, database, cloud, or payment features.",
@@ -145,7 +174,8 @@ function buildPrompt(projectName: string, sessions: SearchSession[]): string {
 async function generateWithOpenAI(
   apiKey: string,
   projectName: string,
-  sessions: SearchSession[]
+  sessions: SearchSession[],
+  language: AppLanguage
 ): Promise<string> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -159,12 +189,14 @@ async function generateWithOpenAI(
       messages: [
         {
           role: "system",
-          content:
-            "You write release notes from local development session data only."
+          content: [
+            "You write release notes from local development session data only.",
+            getLanguageInstruction(language)
+          ].join(" ")
         },
         {
           role: "user",
-          content: buildPrompt(projectName, sessions)
+          content: buildPrompt(projectName, sessions, language)
         }
       ]
     })
@@ -185,27 +217,34 @@ async function generateWithOpenAI(
 }
 
 export async function generateReleaseNotes(
-  projectId: string
+  projectId: string,
+  languageInput: string = "en"
 ): Promise<ReleaseNotesResult> {
   const project = resolveProject(projectId);
+  const language = normalizeLanguage(languageInput);
   const sessions = getSearchSessions(project.projectId);
   const apiKey = readEnvValue("OPENAI_API_KEY");
 
   if (!apiKey) {
     return {
-      markdown: buildMockReleaseNotes(project.projectName, sessions),
+      markdown: buildMockReleaseNotes(project.projectName, sessions, language),
       provider: "mock"
     };
   }
 
   try {
     return {
-      markdown: await generateWithOpenAI(apiKey, project.projectName, sessions),
+      markdown: await generateWithOpenAI(
+        apiKey,
+        project.projectName,
+        sessions,
+        language
+      ),
       provider: "openai"
     };
   } catch {
     return {
-      markdown: buildMockReleaseNotes(project.projectName, sessions),
+      markdown: buildMockReleaseNotes(project.projectName, sessions, language),
       provider: "mock"
     };
   }

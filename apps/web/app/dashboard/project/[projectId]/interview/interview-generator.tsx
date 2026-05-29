@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { readStoredLanguage } from "../../../../../app/language-client";
 import {
   exportInterviewMarkdown,
   generateInterviewSet,
@@ -29,7 +30,7 @@ export function InterviewGenerator({ projectId }: InterviewGeneratorProps) {
     setCopyLabelByIndex({});
 
     startGenerateTransition(async () => {
-      const result = await generateInterviewSet(projectId);
+      const result = await generateInterviewSet(projectId, readStoredLanguage());
       setQuestions(result.questions);
       setMarkdown(result.markdown);
       setProvider(result.provider);

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { readStoredLanguage } from "../../../../../app/language-client";
 import {
   exportReleaseNotesMarkdown,
   generateReleaseNotes
@@ -29,7 +30,7 @@ export function ReleaseNotesGenerator({
     setExportMessage("");
 
     startGenerateTransition(async () => {
-      const result = await generateReleaseNotes(projectId);
+      const result = await generateReleaseNotes(projectId, readStoredLanguage());
       setMarkdown(result.markdown);
       setProvider(result.provider);
     });

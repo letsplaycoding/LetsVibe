@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { readStoredLanguage } from "../../../../../app/language-client";
 import {
   exportCareerMarkdown,
   generateCareerMarkdown,
@@ -37,7 +38,11 @@ export function CareerGenerator({ projectId }: CareerGeneratorProps) {
     setCopyLabel("Copy");
 
     startGenerateTransition(async () => {
-      const result = await generateCareerMarkdown(projectId, style);
+      const result = await generateCareerMarkdown(
+        projectId,
+        style,
+        readStoredLanguage()
+      );
       setMarkdown(result.markdown);
       setProvider(result.provider);
     });
