@@ -1,10 +1,15 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 export type DashboardSession = {
   id: string;
   projectId: string;
   projectName: string;
+  repository: string;
+  branch: string;
+  commitHash: string;
+  commitMessage: string;
   createdAt: string;
   featureName: string;
   summary: string;
@@ -121,12 +126,23 @@ export type ProjectMetadata = {
   isCurrent: boolean;
 };
 
+export type GitMetadata = {
+  repository: string;
+  branch: string;
+  commitHash: string;
+  commitMessage: string;
+};
+
 type RawSession = {
   fileName?: string;
   logsDir?: string;
   id?: string;
   projectId?: string;
   projectName?: string;
+  repository?: string;
+  branch?: string;
+  commitHash?: string;
+  commitMessage?: string;
   createdAt?: string;
   note?: string;
   tags?: string[];
@@ -155,8 +171,41 @@ type RawSession = {
   };
 };
 
+function runGit(args: string[], cwd: string): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  }).trim();
+}
+
+function findRepositoryRootFromFileSystem(startPath: string): string | null {
+  let currentPath = resolve(startPath);
+
+  while (true) {
+    if (existsSync(join(currentPath, ".git"))) {
+      return currentPath;
+    }
+
+    const parentPath = dirname(currentPath);
+
+    if (parentPath === currentPath) {
+      return null;
+    }
+
+    currentPath = parentPath;
+  }
+}
+
 function getRepositoryRoot(): string {
-  return join(process.cwd(), "..", "..");
+  try {
+    return runGit(["rev-parse", "--show-toplevel"], process.cwd());
+  } catch {
+    return (
+      findRepositoryRootFromFileSystem(process.cwd()) ??
+      resolve(process.cwd(), "..", "..")
+    );
+  }
 }
 
 function createProjectId(projectName: string): string {
@@ -177,6 +226,42 @@ export function getCurrentProject(): ProjectMetadata {
     projectName,
     sessionCount: 0,
     isCurrent: true
+  };
+}
+
+function getGitValue(repositoryRoot: string, commands: string[][]): string {
+  for (const command of commands) {
+    try {
+      const value = runGit(command, repositoryRoot);
+
+      if (value) {
+        return value;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return "";
+}
+
+export function getGitMetadata(): GitMetadata {
+  const repositoryRoot = getRepositoryRoot();
+  const repository = basename(repositoryRoot.replace(/[\\/]+$/, "")) || "Project";
+
+  return {
+    repository,
+    branch: getGitValue(repositoryRoot, [
+      ["branch", "--show-current"],
+      ["rev-parse", "--abbrev-ref", "HEAD"]
+    ]),
+    commitHash: getGitValue(repositoryRoot, [
+      ["rev-parse", "HEAD"],
+      ["log", "-1", "--format=%H"]
+    ]),
+    commitMessage: getGitValue(repositoryRoot, [
+      ["log", "-1", "--format=%s"]
+    ])
   };
 }
 
@@ -428,6 +513,7 @@ function toSessionDetail(
   selectedProjectId?: string
 ): SessionDetail {
   const project = resolveProject(selectedProjectId);
+  const gitMetadata = project.isCurrent ? getGitMetadata() : null;
   const id = file.replace(/\.json$/, "");
   const featureName = rawSession.analysis?.feature_name ?? "Development Session";
   const changedFiles = rawSession.git?.changedFiles ?? [];
@@ -436,6 +522,10 @@ function toSessionDetail(
     id,
     projectId: rawSession.projectId ?? project.projectId,
     projectName: rawSession.projectName ?? project.projectName,
+    repository: rawSession.repository || gitMetadata?.repository || project.projectName,
+    branch: rawSession.branch || gitMetadata?.branch || "",
+    commitHash: rawSession.commitHash || gitMetadata?.commitHash || "",
+    commitMessage: rawSession.commitMessage || gitMetadata?.commitMessage || "",
     createdAt: rawSession.createdAt ?? "",
     featureName,
     summary: rawSession.analysis?.summary ?? "",
@@ -478,6 +568,10 @@ export function getDashboardSessions(projectId?: string): DashboardSession[] {
         id: session.id,
         projectId: session.projectId,
         projectName: session.projectName,
+        repository: session.repository,
+        branch: session.branch,
+        commitHash: session.commitHash,
+        commitMessage: session.commitMessage,
         createdAt: session.createdAt,
         featureName: session.featureName,
         summary: session.summary,
@@ -504,6 +598,10 @@ export function getPortfolioSessions(projectId?: string): PortfolioSession[] {
         id: session.id,
         projectId: session.projectId,
         projectName: session.projectName,
+        repository: session.repository,
+        branch: session.branch,
+        commitHash: session.commitHash,
+        commitMessage: session.commitMessage,
         createdAt: session.createdAt,
         featureName: session.featureName,
         summary: session.summary,

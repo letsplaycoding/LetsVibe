@@ -71,6 +71,10 @@ type Session = {
   command: "vibelog end";
   projectId: string;
   projectName: string;
+  repository: string;
+  branch: string;
+  commitHash: string;
+  commitMessage: string;
   note: string;
   tags: string[];
   provider: ProviderName;
@@ -86,10 +90,23 @@ type Session = {
 
 type RawSession = Omit<
   Session,
-  "projectId" | "projectName" | "provider" | "metadata" | "tags" | "analysis"
+  | "projectId"
+  | "projectName"
+  | "repository"
+  | "branch"
+  | "commitHash"
+  | "commitMessage"
+  | "provider"
+  | "metadata"
+  | "tags"
+  | "analysis"
 > & {
   projectId?: string;
   projectName?: string;
+  repository?: string;
+  branch?: string;
+  commitHash?: string;
+  commitMessage?: string;
   provider?: ProviderName;
   metadata?: Partial<AnalysisMetadata>;
   tags?: string[];
@@ -116,6 +133,13 @@ type ListedSession = {
 type ProjectMetadata = {
   projectId: string;
   projectName: string;
+};
+
+type GitMetadata = {
+  repository: string;
+  branch: string;
+  commitHash: string;
+  commitMessage: string;
 };
 
 function runGit(args: string[], cwd = process.cwd()): string {
@@ -149,6 +173,46 @@ function getProjectMetadata(repositoryRoot: string): ProjectMetadata {
   return {
     projectId: createProjectId(projectName),
     projectName
+  };
+}
+
+function getGitValue(args: string[], repositoryRoot: string): string {
+  try {
+    return runGit(args, repositoryRoot).trim();
+  } catch {
+    return "";
+  }
+}
+
+function getFirstGitValue(repositoryRoot: string, commands: string[][]): string {
+  for (const command of commands) {
+    const value = getGitValue(command, repositoryRoot);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function getGitMetadata(
+  repositoryRoot: string,
+  project: ProjectMetadata
+): GitMetadata {
+  return {
+    repository: project.projectName,
+    branch: getFirstGitValue(repositoryRoot, [
+      ["branch", "--show-current"],
+      ["rev-parse", "--abbrev-ref", "HEAD"]
+    ]),
+    commitHash: getFirstGitValue(repositoryRoot, [
+      ["rev-parse", "HEAD"],
+      ["log", "-1", "--format=%H"]
+    ]),
+    commitMessage: getFirstGitValue(repositoryRoot, [
+      ["log", "-1", "--format=%s"]
+    ])
   };
 }
 
@@ -683,6 +747,12 @@ function buildMarkdownLog(session: Session): string {
     "## Changed Files",
     formatMarkdownList(session.git.changedFiles),
     "",
+    "## Repository",
+    `Repository: ${session.repository || "(unknown)"}`,
+    `Branch: ${session.branch || "(unknown)"}`,
+    `Commit: ${session.commitHash || "(none)"}`,
+    `Message: ${session.commitMessage || "(none)"}`,
+    "",
     "## Tags",
     formatMarkdownList(session.tags),
     "",
@@ -755,6 +825,10 @@ function normalizeSession(
     ...session,
     projectId: session.projectId ?? project.projectId,
     projectName: session.projectName ?? project.projectName,
+    repository: session.repository ?? project.projectName,
+    branch: session.branch ?? "",
+    commitHash: session.commitHash ?? "",
+    commitMessage: session.commitMessage ?? "",
     provider,
     metadata: {
       model:
@@ -799,6 +873,9 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
   console.log(`Session: ${sessionPath}`);
   console.log(`Markdown: ${logPath}`);
   console.log(`Project: ${session.projectName} (${session.projectId})`);
+  console.log(`Repository: ${session.repository || "(unknown)"}`);
+  console.log(`Branch: ${session.branch || "(unknown)"}`);
+  console.log(`Commit: ${session.commitHash || "(none)"}`);
   console.log(`Changed files: ${session.git.changedFiles.length}`);
   console.log(
     `Tags: ${session.tags.length > 0 ? session.tags.join(", ") : "None"}`
@@ -830,6 +907,7 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
 async function endCommand(): Promise<void> {
   const repositoryRoot = getRepositoryRoot();
   const project = getProjectMetadata(repositoryRoot);
+  const gitMetadata = getGitMetadata(repositoryRoot, project);
   const [diff, status, changedFilesOutput] = [
     runGit(["diff"], repositoryRoot),
     runGit(["status", "--short"], repositoryRoot),
@@ -861,6 +939,10 @@ async function endCommand(): Promise<void> {
     command: "vibelog end",
     projectId: project.projectId,
     projectName: project.projectName,
+    repository: gitMetadata.repository,
+    branch: gitMetadata.branch,
+    commitHash: gitMetadata.commitHash,
+    commitMessage: gitMetadata.commitMessage,
     note,
     tags,
     provider,
@@ -993,6 +1075,10 @@ function printDetailedSession(listedSession: ListedSession): void {
 
   console.log(session.analysis.feature_name);
   console.log(`Project: ${session.projectName} (${session.projectId})`);
+  console.log(`Repository: ${session.repository || "(unknown)"}`);
+  console.log(`Branch: ${session.branch || "(unknown)"}`);
+  console.log(`Commit: ${session.commitHash || "(none)"}`);
+  console.log(`Commit Message: ${session.commitMessage || "(none)"}`);
   console.log(`Created: ${session.createdAt}`);
   console.log(`Provider: ${session.provider ?? "mock"}`);
   console.log(`Model: ${session.metadata.model}`);
@@ -1054,6 +1140,10 @@ function printTimelineSession(listedSession: ListedSession): void {
   console.log("");
   console.log(`1. Session started`);
   console.log(`   Project: ${session.projectName} (${session.projectId})`);
+  console.log(`   Repository: ${session.repository || "(unknown)"}`);
+  console.log(`   Branch: ${session.branch || "(unknown)"}`);
+  console.log(`   Commit: ${session.commitHash || "(none)"}`);
+  console.log(`   Commit message: ${session.commitMessage || "(none)"}`);
   console.log(`   Date: ${session.createdAt}`);
   console.log(`   Provider: ${session.provider ?? "mock"}`);
   console.log(`   Model: ${session.metadata.model}`);

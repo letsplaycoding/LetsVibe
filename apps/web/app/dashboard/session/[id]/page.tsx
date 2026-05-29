@@ -120,6 +120,28 @@ export default async function SessionPage({
               </article>
 
               <article className="detail-panel wide">
+                <h2>Commit Metadata</h2>
+                <dl className="usage-grid two-column">
+                  <div>
+                    <dt>Repository</dt>
+                    <dd>{session.repository || "(unknown)"}</dd>
+                  </div>
+                  <div>
+                    <dt>Branch</dt>
+                    <dd>{session.branch || "(unknown)"}</dd>
+                  </div>
+                  <div>
+                    <dt>Commit hash</dt>
+                    <dd>{session.commitHash || "(none)"}</dd>
+                  </div>
+                  <div>
+                    <dt>Commit message</dt>
+                    <dd>{session.commitMessage || "(none)"}</dd>
+                  </div>
+                </dl>
+              </article>
+
+              <article className="detail-panel wide">
                 <h2>Portfolio Text</h2>
                 <p>{session.portfolioText || "(empty)"}</p>
               </article>
