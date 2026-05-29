@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 export type DashboardSession = {
   id: string;
+  projectId: string;
+  projectName: string;
   createdAt: string;
   featureName: string;
   summary: string;
@@ -41,6 +43,8 @@ export type SearchSession = SessionDetail;
 export type CompareSession = SessionDetail;
 
 export type SettingsSummary = {
+  projectId: string;
+  projectName: string;
   apiKeyConfigured: boolean;
   providerStatus: "OpenAI" | "Mock";
   modelName: string;
@@ -52,6 +56,8 @@ export type SettingsSummary = {
 };
 
 export type OverviewSummary = {
+  projectId: string;
+  projectName: string;
   totalSessions: number;
   totalChangedFiles: number;
   totalTokens: number;
@@ -93,6 +99,8 @@ export type WeeklyReportGroup = {
 
 export type StorySession = {
   id: string;
+  projectId: string;
+  projectName: string;
   createdAt: string;
   featureName: string;
   summary: string;
@@ -104,9 +112,17 @@ export type StorySession = {
   portfolioText: string;
 };
 
+export type ProjectMetadata = {
+  projectId: string;
+  projectName: string;
+};
+
 type RawSession = {
   fileName?: string;
+  logsDir?: string;
   id?: string;
+  projectId?: string;
+  projectName?: string;
   createdAt?: string;
   note?: string;
   tags?: string[];
@@ -139,13 +155,32 @@ function getRepositoryRoot(): string {
   return join(process.cwd(), "..", "..");
 }
 
-function getSessionsDir(): string {
-  return join(getRepositoryRoot(), ".vibelog", "sessions");
+function createProjectId(projectName: string): string {
+  const projectId = projectName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return projectId || "project";
 }
 
-function readRawSessions(): RawSession[] {
-  const sessionsDir = getSessionsDir();
+export function getCurrentProject(): ProjectMetadata {
+  const repositoryRoot = getRepositoryRoot();
+  const projectName = basename(repositoryRoot.replace(/[\\/]+$/, "")) || "Project";
 
+  return {
+    projectId: createProjectId(projectName),
+    projectName
+  };
+}
+
+export function getCurrentProjectDir(): string {
+  const project = getCurrentProject();
+
+  return join(getRepositoryRoot(), ".vibelog", "projects", project.projectId);
+}
+
+function readRawSessionsFromDir(sessionsDir: string, logsDir: string): RawSession[] {
   if (!existsSync(sessionsDir)) {
     return [];
   }
@@ -159,9 +194,38 @@ function readRawSessions(): RawSession[] {
 
       return {
         ...rawSession,
-        fileName: file
+        fileName: file,
+        logsDir
       };
     });
+}
+
+function readRawSessions(): RawSession[] {
+  const repositoryRoot = getRepositoryRoot();
+  const projectDir = getCurrentProjectDir();
+  const projectSessions = readRawSessionsFromDir(
+    join(projectDir, "sessions"),
+    join(projectDir, "logs")
+  );
+  const legacySessions = readRawSessionsFromDir(
+    join(repositoryRoot, ".vibelog", "sessions"),
+    join(repositoryRoot, ".vibelog", "logs")
+  );
+  const sessionsById = new Map<string, RawSession>();
+
+  for (const session of projectSessions) {
+    sessionsById.set(session.fileName ?? session.id ?? "", session);
+  }
+
+  for (const session of legacySessions) {
+    const key = session.fileName ?? session.id ?? "";
+
+    if (!sessionsById.has(key)) {
+      sessionsById.set(key, session);
+    }
+  }
+
+  return Array.from(sessionsById.values());
 }
 
 function readEnvValue(key: string): string | null {
@@ -215,8 +279,11 @@ function createSlug(value: string): string {
   return slug || "development-session";
 }
 
-function readMarkdownPreview(id: string, featureName: string): string | null {
-  const logsDir = join(getRepositoryRoot(), ".vibelog", "logs");
+function readMarkdownPreview(
+  id: string,
+  featureName: string,
+  logsDir: string
+): string | null {
   const markdownPath = join(logsDir, `${id}-${createSlug(featureName)}.md`);
 
   if (existsSync(markdownPath)) {
@@ -289,12 +356,15 @@ function normalizeTagValues(tags: string[]): string[] {
 }
 
 function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
+  const project = getCurrentProject();
   const id = file.replace(/\.json$/, "");
   const featureName = rawSession.analysis?.feature_name ?? "Development Session";
   const changedFiles = rawSession.git?.changedFiles ?? [];
 
   return {
     id,
+    projectId: rawSession.projectId ?? project.projectId,
+    projectName: rawSession.projectName ?? project.projectName,
     createdAt: rawSession.createdAt ?? "",
     featureName,
     summary: rawSession.analysis?.summary ?? "",
@@ -316,7 +386,11 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
     },
     gitStatus: rawSession.git?.status ?? "",
     gitDiff: rawSession.git?.diff ?? "",
-    markdownPreview: readMarkdownPreview(id, featureName)
+    markdownPreview: readMarkdownPreview(
+      id,
+      featureName,
+      rawSession.logsDir ?? join(getCurrentProjectDir(), "logs")
+    )
   };
 }
 
@@ -330,6 +404,8 @@ export function getDashboardSessions(): DashboardSession[] {
 
       return {
         id: session.id,
+        projectId: session.projectId,
+        projectName: session.projectName,
         createdAt: session.createdAt,
         featureName: session.featureName,
         summary: session.summary,
@@ -353,6 +429,8 @@ export function getPortfolioSessions(): PortfolioSession[] {
 
       return {
         id: session.id,
+        projectId: session.projectId,
+        projectName: session.projectName,
         createdAt: session.createdAt,
         featureName: session.featureName,
         summary: session.summary,
@@ -383,6 +461,7 @@ export function getCompareSessions(): CompareSession[] {
 }
 
 export function getSettingsSummary(): SettingsSummary {
+  const project = getCurrentProject();
   const sessions = readRawSessions().map((rawSession) =>
     toSessionDetail(rawSession, rawSession.fileName ?? `${rawSession.id ?? ""}.json`)
   );
@@ -406,6 +485,8 @@ export function getSettingsSummary(): SettingsSummary {
   );
 
   return {
+    projectId: project.projectId,
+    projectName: project.projectName,
     apiKeyConfigured,
     providerStatus: apiKeyConfigured ? "OpenAI" : "Mock",
     modelName: apiKeyConfigured ? "gpt-4.1-mini" : "mock",
@@ -418,6 +499,7 @@ export function getSettingsSummary(): SettingsSummary {
 }
 
 export function getOverviewSummary(): OverviewSummary {
+  const project = getCurrentProject();
   const sessions = getSearchSessions();
   const tagCounts = new Map<string, number>();
   const dayCounts = new Map<string, number>();
@@ -441,6 +523,8 @@ export function getOverviewSummary(): OverviewSummary {
     null;
 
   return {
+    projectId: project.projectId,
+    projectName: project.projectName,
     totalSessions: sessions.length,
     totalChangedFiles: sessions.reduce(
       (total, session) => total + session.changedFilesCount,
@@ -538,6 +622,8 @@ export function getStorySessions(): StorySession[] {
     )
     .map((session) => ({
       id: session.id,
+      projectId: session.projectId,
+      projectName: session.projectName,
       createdAt: session.createdAt,
       featureName: session.featureName,
       summary: session.summary,
@@ -551,14 +637,27 @@ export function getStorySessions(): StorySession[] {
 }
 
 export function getDashboardSession(id: string): SessionDetail | null {
-  const sessionsDir = join(getRepositoryRoot(), ".vibelog", "sessions");
-  const sessionPath = join(sessionsDir, `${id}.json`);
+  const projectDir = getCurrentProjectDir();
+  const projectSessionPath = join(projectDir, "sessions", `${id}.json`);
+  const legacySessionPath = join(
+    getRepositoryRoot(),
+    ".vibelog",
+    "sessions",
+    `${id}.json`
+  );
+  const sessionPath = existsSync(projectSessionPath)
+    ? projectSessionPath
+    : legacySessionPath;
 
   if (!existsSync(sessionPath)) {
     return null;
   }
 
   const rawSession = JSON.parse(readFileSync(sessionPath, "utf8")) as RawSession;
+  const logsDir =
+    sessionPath === projectSessionPath
+      ? join(projectDir, "logs")
+      : join(getRepositoryRoot(), ".vibelog", "logs");
 
-  return toSessionDetail(rawSession, `${id}.json`);
+  return toSessionDetail({ ...rawSession, logsDir }, `${id}.json`);
 }

@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { revalidatePath } from "next/cache";
+import { getCurrentProject, getCurrentProjectDir } from "../../../../lib/sessions";
 
 export type EditableSessionAnalysis = {
   featureName: string;
@@ -16,6 +17,8 @@ export type EditableSessionAnalysis = {
 };
 
 type RawSession = {
+  projectId?: string;
+  projectName?: string;
   tags?: string[];
   analysis?: {
     feature_name?: string;
@@ -33,6 +36,12 @@ function getRepositoryRoot(): string {
 }
 
 function getSessionPath(id: string): string {
+  const projectSessionPath = join(getCurrentProjectDir(), "sessions", `${id}.json`);
+
+  if (existsSync(projectSessionPath)) {
+    return projectSessionPath;
+  }
+
   return join(getRepositoryRoot(), ".vibelog", "sessions", `${id}.json`);
 }
 
@@ -85,6 +94,7 @@ export async function saveSessionAnalysis(
   }
 
   const rawSession = JSON.parse(readFileSync(sessionPath, "utf8")) as RawSession;
+  const project = getCurrentProject();
   const featureName = validateText(analysis.featureName, "Feature name");
   const summary = validateText(analysis.summary, "Summary");
   const portfolioText = validateText(analysis.portfolioText, "Portfolio text");
@@ -96,6 +106,8 @@ export async function saveSessionAnalysis(
     "Future improvements"
   );
 
+  rawSession.projectId = rawSession.projectId ?? project.projectId;
+  rawSession.projectName = rawSession.projectName ?? project.projectName;
   rawSession.tags = tags;
   rawSession.analysis = {
     ...rawSession.analysis,

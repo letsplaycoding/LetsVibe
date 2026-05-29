@@ -2,17 +2,14 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-
-function getRepositoryRoot(): string {
-  return join(process.cwd(), "..", "..");
-}
+import { getCurrentProjectDir } from "../../../lib/sessions";
 
 function createPortfolioId(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
 export async function exportPortfolioMarkdown(markdown: string): Promise<string> {
-  const portfolioDir = join(getRepositoryRoot(), ".vibelog", "portfolio");
+  const portfolioDir = join(getCurrentProjectDir(), "portfolio");
   await mkdir(portfolioDir, { recursive: true });
 
   const filePath = join(

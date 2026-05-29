@@ -8,7 +8,7 @@ import {
   readdirSync,
   writeFileSync
 } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
@@ -69,6 +69,8 @@ type Session = {
   id: string;
   createdAt: string;
   command: "vibelog end";
+  projectId: string;
+  projectName: string;
   note: string;
   tags: string[];
   provider: ProviderName;
@@ -82,7 +84,12 @@ type Session = {
   analysis: Analysis;
 };
 
-type RawSession = Omit<Session, "provider" | "metadata" | "tags" | "analysis"> & {
+type RawSession = Omit<
+  Session,
+  "projectId" | "projectName" | "provider" | "metadata" | "tags" | "analysis"
+> & {
+  projectId?: string;
+  projectName?: string;
   provider?: ProviderName;
   metadata?: Partial<AnalysisMetadata>;
   tags?: string[];
@@ -106,6 +113,11 @@ type ListedSession = {
   markdownPath: string | null;
 };
 
+type ProjectMetadata = {
+  projectId: string;
+  projectName: string;
+};
+
 function runGit(args: string[], cwd = process.cwd()): string {
   return execFileSync("git", args, {
     cwd,
@@ -120,6 +132,31 @@ function getRepositoryRoot(): string {
   } catch {
     throw new Error("Not inside a git repository.");
   }
+}
+
+function createProjectId(projectName: string): string {
+  const projectId = projectName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return projectId || "project";
+}
+
+function getProjectMetadata(repositoryRoot: string): ProjectMetadata {
+  const projectName = basename(repositoryRoot.replace(/[\\/]+$/, "")) || "Project";
+
+  return {
+    projectId: createProjectId(projectName),
+    projectName
+  };
+}
+
+function getProjectDir(
+  repositoryRoot: string,
+  project: ProjectMetadata
+): string {
+  return join(repositoryRoot, ".vibelog", "projects", project.projectId);
 }
 
 async function askWorkNote(): Promise<string> {
@@ -611,8 +648,12 @@ function createSlug(value: string): string {
   return slug || "development-session";
 }
 
-function saveSession(repositoryRoot: string, session: Session): string {
-  const sessionsDir = join(repositoryRoot, ".vibelog", "sessions");
+function saveSession(
+  repositoryRoot: string,
+  project: ProjectMetadata,
+  session: Session
+): string {
+  const sessionsDir = join(getProjectDir(repositoryRoot, project), "sessions");
   mkdirSync(sessionsDir, { recursive: true });
 
   const sessionPath = join(sessionsDir, `${session.id}.json`);
@@ -665,8 +706,12 @@ function buildMarkdownLog(session: Session): string {
   ].join("\n");
 }
 
-function saveMarkdownLog(repositoryRoot: string, session: Session): string {
-  const logsDir = join(repositoryRoot, ".vibelog", "logs");
+function saveMarkdownLog(
+  repositoryRoot: string,
+  project: ProjectMetadata,
+  session: Session
+): string {
+  const logsDir = join(getProjectDir(repositoryRoot, project), "logs");
   mkdirSync(logsDir, { recursive: true });
 
   const slug = createSlug(session.analysis.feature_name);
@@ -676,7 +721,10 @@ function saveMarkdownLog(repositoryRoot: string, session: Session): string {
   return logPath;
 }
 
-function normalizeSession(session: RawSession): Session {
+function normalizeSession(
+  session: RawSession,
+  project: ProjectMetadata
+): Session {
   const provider = session.provider ?? session.metadata?.provider ?? "mock";
   const analysis: Analysis = {
     feature_name: String(session.analysis.feature_name ?? "Development Session"),
@@ -705,6 +753,8 @@ function normalizeSession(session: RawSession): Session {
 
   return {
     ...session,
+    projectId: session.projectId ?? project.projectId,
+    projectName: session.projectName ?? project.projectName,
     provider,
     metadata: {
       model:
@@ -726,15 +776,21 @@ function normalizeSession(session: RawSession): Session {
   };
 }
 
-function getMarkdownLogPath(repositoryRoot: string, session: Session): string | null {
-  const logPath = join(
-    repositoryRoot,
-    ".vibelog",
-    "logs",
-    `${session.id}-${createSlug(session.analysis.feature_name)}.md`
-  );
+function getMarkdownLogPath(
+  repositoryRoot: string,
+  project: ProjectMetadata,
+  session: Session
+): string | null {
+  const fileName = `${session.id}-${createSlug(session.analysis.feature_name)}.md`;
+  const logPath = join(getProjectDir(repositoryRoot, project), "logs", fileName);
 
-  return existsSync(logPath) ? logPath : null;
+  if (existsSync(logPath)) {
+    return logPath;
+  }
+
+  const legacyLogPath = join(repositoryRoot, ".vibelog", "logs", fileName);
+
+  return existsSync(legacyLogPath) ? legacyLogPath : null;
 }
 
 function printSummary(session: Session, sessionPath: string, logPath: string): void {
@@ -742,6 +798,7 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
   console.log("VibeLog session saved");
   console.log(`Session: ${sessionPath}`);
   console.log(`Markdown: ${logPath}`);
+  console.log(`Project: ${session.projectName} (${session.projectId})`);
   console.log(`Changed files: ${session.git.changedFiles.length}`);
   console.log(
     `Tags: ${session.tags.length > 0 ? session.tags.join(", ") : "None"}`
@@ -772,6 +829,7 @@ function printSummary(session: Session, sessionPath: string, logPath: string): v
 
 async function endCommand(): Promise<void> {
   const repositoryRoot = getRepositoryRoot();
+  const project = getProjectMetadata(repositoryRoot);
   const [diff, status, changedFilesOutput] = [
     runGit(["diff"], repositoryRoot),
     runGit(["status", "--short"], repositoryRoot),
@@ -801,6 +859,8 @@ async function endCommand(): Promise<void> {
     id: createSessionId(createdAt),
     createdAt: createdAt.toISOString(),
     command: "vibelog end",
+    projectId: project.projectId,
+    projectName: project.projectName,
     note,
     tags,
     provider,
@@ -814,14 +874,16 @@ async function endCommand(): Promise<void> {
     analysis
   };
 
-  const sessionPath = saveSession(repositoryRoot, session);
-  const logPath = saveMarkdownLog(repositoryRoot, session);
+  const sessionPath = saveSession(repositoryRoot, project, session);
+  const logPath = saveMarkdownLog(repositoryRoot, project, session);
   printSummary(session, sessionPath, logPath);
 }
 
-function readSessions(repositoryRoot: string): ListedSession[] {
-  const sessionsDir = join(repositoryRoot, ".vibelog", "sessions");
-
+function readSessionsFromDir(
+  repositoryRoot: string,
+  project: ProjectMetadata,
+  sessionsDir: string
+): ListedSession[] {
   if (!existsSync(sessionsDir)) {
     return [];
   }
@@ -829,15 +891,43 @@ function readSessions(repositoryRoot: string): ListedSession[] {
   return readdirSync(sessionsDir)
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
-      const session = normalizeSession(JSON.parse(
-        readFileSync(join(sessionsDir, file), "utf8")
-      ) as RawSession);
+      const session = normalizeSession(
+        JSON.parse(readFileSync(join(sessionsDir, file), "utf8")) as RawSession,
+        project
+      );
 
       return {
         session,
-        markdownPath: getMarkdownLogPath(repositoryRoot, session)
+        markdownPath: getMarkdownLogPath(repositoryRoot, project, session)
       };
-    })
+    });
+}
+
+function readSessions(repositoryRoot: string): ListedSession[] {
+  const project = getProjectMetadata(repositoryRoot);
+  const projectSessionsDir = join(getProjectDir(repositoryRoot, project), "sessions");
+  const legacySessionsDir = join(repositoryRoot, ".vibelog", "sessions");
+  const sessionsById = new Map<string, ListedSession>();
+
+  for (const listedSession of readSessionsFromDir(
+    repositoryRoot,
+    project,
+    projectSessionsDir
+  )) {
+    sessionsById.set(listedSession.session.id, listedSession);
+  }
+
+  for (const listedSession of readSessionsFromDir(
+    repositoryRoot,
+    project,
+    legacySessionsDir
+  )) {
+    if (!sessionsById.has(listedSession.session.id)) {
+      sessionsById.set(listedSession.session.id, listedSession);
+    }
+  }
+
+  return Array.from(sessionsById.values())
     .sort(
       (a, b) =>
         new Date(b.session.createdAt).getTime() -
@@ -857,9 +947,10 @@ function listCommand(): void {
   console.log("Recent VibeLog sessions");
 
   sessions.forEach(({ session, markdownPath }, index) => {
-    console.log("");
-    console.log(`${index + 1}. ${session.analysis.feature_name}`);
-    console.log(`Created: ${session.createdAt}`);
+  console.log("");
+  console.log(`${index + 1}. ${session.analysis.feature_name}`);
+    console.log(`Project: ${session.projectName} (${session.projectId})`);
+  console.log(`Created: ${session.createdAt}`);
     console.log(`Provider: ${session.provider ?? "mock"}`);
     console.log(`Model: ${session.metadata.model}`);
     console.log(`Tokens: ${session.metadata.total_tokens}`);
@@ -901,6 +992,7 @@ function printDetailedSession(listedSession: ListedSession): void {
   const { session, markdownPath } = listedSession;
 
   console.log(session.analysis.feature_name);
+  console.log(`Project: ${session.projectName} (${session.projectId})`);
   console.log(`Created: ${session.createdAt}`);
   console.log(`Provider: ${session.provider ?? "mock"}`);
   console.log(`Model: ${session.metadata.model}`);
@@ -961,6 +1053,7 @@ function printTimelineSession(listedSession: ListedSession): void {
   console.log(`Timeline: ${session.analysis.feature_name}`);
   console.log("");
   console.log(`1. Session started`);
+  console.log(`   Project: ${session.projectName} (${session.projectId})`);
   console.log(`   Date: ${session.createdAt}`);
   console.log(`   Provider: ${session.provider ?? "mock"}`);
   console.log(`   Model: ${session.metadata.model}`);

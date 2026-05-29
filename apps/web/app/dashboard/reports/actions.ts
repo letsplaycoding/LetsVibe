@@ -2,10 +2,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-
-function getRepositoryRoot(): string {
-  return join(process.cwd(), "..", "..");
-}
+import { getCurrentProjectDir } from "../../../lib/sessions";
 
 function createReportId(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
@@ -19,7 +16,7 @@ export async function exportWeeklyReportMarkdown(
   weekId: string,
   markdown: string
 ): Promise<string> {
-  const reportsDir = join(getRepositoryRoot(), ".vibelog", "reports");
+  const reportsDir = join(getCurrentProjectDir(), "reports");
   await mkdir(reportsDir, { recursive: true });
 
   const filePath = join(

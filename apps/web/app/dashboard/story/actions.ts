@@ -3,7 +3,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getStorySessions, type StorySession } from "../../../lib/sessions";
+import {
+  getCurrentProjectDir,
+  getStorySessions,
+  type StorySession
+} from "../../../lib/sessions";
 
 type StoryResult = {
   markdown: string;
@@ -223,7 +227,7 @@ export async function generateProjectStoryMarkdown(): Promise<StoryResult> {
 }
 
 export async function exportStoryMarkdown(markdown: string): Promise<string> {
-  const storiesDir = join(getRepositoryRoot(), ".vibelog", "stories");
+  const storiesDir = join(getCurrentProjectDir(), "stories");
   await mkdir(storiesDir, { recursive: true });
 
   const filePath = join(storiesDir, `story-${createStoryId(new Date())}.md`);

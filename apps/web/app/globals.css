@@ -144,6 +144,12 @@ h1 {
   margin: 12px 0 0;
 }
 
+.dashboard-header .project-label {
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .session-count {
   align-items: center;
   background: var(--panel);
