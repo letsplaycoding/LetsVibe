@@ -50,6 +50,27 @@ export type SettingsSummary = {
   estimatedTotalCostUsd: number;
 };
 
+export type OverviewSummary = {
+  totalSessions: number;
+  totalChangedFiles: number;
+  totalTokens: number;
+  estimatedTotalCostUsd: number;
+  topTags: Array<{
+    tag: string;
+    count: number;
+  }>;
+  mostActiveDay: {
+    date: string;
+    count: number;
+  } | null;
+  recentActivity: Array<{
+    id: string;
+    featureName: string;
+    createdAt: string;
+    summary: string;
+  }>;
+};
+
 type RawSession = {
   id?: string;
   createdAt?: string;
@@ -335,6 +356,58 @@ export function getSettingsSummary(): SettingsSummary {
     totalOutputTokens: totals.outputTokens,
     totalTokens: totals.totalTokens,
     estimatedTotalCostUsd: Number(totals.estimatedCostUsd.toFixed(6))
+  };
+}
+
+export function getOverviewSummary(): OverviewSummary {
+  const sessions = getSearchSessions();
+  const tagCounts = new Map<string, number>();
+  const dayCounts = new Map<string, number>();
+
+  for (const session of sessions) {
+    for (const tag of session.tags) {
+      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    }
+
+    const date = new Date(session.createdAt);
+    const dateLabel = Number.isNaN(date.getTime())
+      ? "Unknown date"
+      : date.toISOString().slice(0, 10);
+    dayCounts.set(dateLabel, (dayCounts.get(dateLabel) ?? 0) + 1);
+  }
+
+  const mostActiveDay =
+    Array.from(dayCounts.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => b.count - a.count || b.date.localeCompare(a.date))[0] ??
+    null;
+
+  return {
+    totalSessions: sessions.length,
+    totalChangedFiles: sessions.reduce(
+      (total, session) => total + session.changedFilesCount,
+      0
+    ),
+    totalTokens: sessions.reduce(
+      (total, session) => total + session.aiUsage.totalTokens,
+      0
+    ),
+    estimatedTotalCostUsd: Number(
+      sessions
+        .reduce((total, session) => total + session.aiUsage.estimatedCostUsd, 0)
+        .toFixed(6)
+    ),
+    topTags: Array.from(tagCounts.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+      .slice(0, 8),
+    mostActiveDay,
+    recentActivity: sessions.slice(0, 5).map((session) => ({
+      id: session.id,
+      featureName: session.featureName,
+      createdAt: session.createdAt,
+      summary: session.summary
+    }))
   };
 }
 
