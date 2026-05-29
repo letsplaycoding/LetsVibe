@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LanguageSelector } from "../../language-client";
+import { LanguageSelector, ThemeSelector } from "../../language-client";
 import { getSettingsSummary } from "../../../lib/sessions";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +48,15 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
               browser only.
             </p>
             <LanguageSelector />
+          </article>
+
+          <article className="detail-panel">
+            <h2>Appearance</h2>
+            <p className="settings-note no-divider">
+              Choose light, dark, or system appearance. The preference is stored
+              in this browser only.
+            </p>
+            <ThemeSelector />
           </article>
 
           <article className="detail-panel">

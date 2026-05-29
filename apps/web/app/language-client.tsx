@@ -7,6 +7,10 @@ import {
   type AppLanguage
 } from "../lib/language";
 
+type AppTheme = "light" | "dark" | "system";
+
+const THEME_STORAGE_KEY = "vibelog-theme";
+
 const TRANSLATIONS: Record<string, string> = {
   "Back to Dashboard": "\ub300\uc2dc\ubcf4\ub4dc\ub85c \ub3cc\uc544\uac00\uae30",
   "Overview": "\uac1c\uc694",
@@ -94,6 +98,11 @@ const TRANSLATIONS: Record<string, string> = {
   "Release Notes Preview": "\ub9b4\ub9ac\uc2a4 \ub178\ud2b8 \ubbf8\ub9ac\ubcf4\uae30",
   "Generate Release Notes": "\ub9b4\ub9ac\uc2a4 \ub178\ud2b8 \uc0dd\uc131",
   "Language": "\uc5b8\uc5b4",
+  "Appearance": "\ud654\uba74 \ud14c\ub9c8",
+  "Theme": "\ud14c\ub9c8",
+  "Light": "\ub77c\uc774\ud2b8",
+  "Dark": "\ub2e4\ud06c",
+  "System": "\uc2dc\uc2a4\ud15c",
   "Korean": "\ud55c\uad6d\uc5b4",
   "English": "English",
   "Question": "\uc9c8\ubb38",
@@ -112,6 +121,12 @@ const PLACEHOLDER_TRANSLATIONS: Record<string, string> = {
   "Write your answer, then evaluate it":
     "\ub2f5\ubcc0\uc744 \uc791\uc131\ud55c \ub4a4 \ud3c9\uac00\ud558\uc138\uc694"
 };
+
+function normalizeTheme(value: unknown): AppTheme {
+  return value === "light" || value === "dark" || value === "system"
+    ? value
+    : "system";
+}
 
 function translateText(value: string, language: AppLanguage): string {
   if (language === "ko") {
@@ -183,6 +198,32 @@ export function readStoredLanguage(): AppLanguage {
   return normalizeLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
 }
 
+export function readStoredTheme(): AppTheme {
+  if (typeof window === "undefined") {
+    return "system";
+  }
+
+  return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
+}
+
+function resolveTheme(theme: AppTheme): "light" | "dark" {
+  if (theme !== "system") {
+    return theme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function applyTheme(theme: AppTheme): void {
+  const resolvedTheme = resolveTheme(theme);
+
+  document.documentElement.dataset.theme = resolvedTheme;
+  document.documentElement.dataset.themePreference = theme;
+  document.documentElement.style.colorScheme = resolvedTheme;
+}
+
 export function LanguageClient(): null {
   useEffect(() => {
     const apply = (): void => translateDocument(readStoredLanguage());
@@ -198,6 +239,20 @@ export function LanguageClient(): null {
     return () => {
       observer.disconnect();
       window.removeEventListener("vibelog-language-change", apply);
+    };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = (): void => applyTheme(readStoredTheme());
+
+    apply();
+    window.addEventListener("vibelog-theme-change", apply);
+    mediaQuery.addEventListener("change", apply);
+
+    return () => {
+      window.removeEventListener("vibelog-theme-change", apply);
+      mediaQuery.removeEventListener("change", apply);
     };
   }, []);
 
@@ -227,8 +282,40 @@ export function LanguageSelector(): ReactElement {
         }
         value={language}
       >
-        <option value="ko">한국어</option>
+        <option value="ko">{"\ud55c\uad6d\uc5b4"}</option>
         <option value="en">English</option>
+      </select>
+    </label>
+  );
+}
+
+export function ThemeSelector(): ReactElement {
+  const [theme, setTheme] = useState<AppTheme>("system");
+
+  useEffect(() => {
+    const storedTheme = readStoredTheme();
+    setTheme(storedTheme);
+    applyTheme(storedTheme);
+  }, []);
+
+  function updateTheme(nextTheme: AppTheme): void {
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    setTheme(nextTheme);
+    applyTheme(nextTheme);
+    window.dispatchEvent(new Event("vibelog-theme-change"));
+  }
+
+  return (
+    <label className="sort-field language-selector">
+      <span>Theme</span>
+      <select
+        className="select-control"
+        onChange={(event) => updateTheme(normalizeTheme(event.target.value))}
+        value={theme}
+      >
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
       </select>
     </label>
   );
