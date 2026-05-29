@@ -865,6 +865,16 @@ h1 {
   padding: 16px;
 }
 
+.interview-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.interview-list {
+  display: grid;
+  gap: 14px;
+}
+
 .filter-tabs {
   display: flex;
   flex-wrap: wrap;
