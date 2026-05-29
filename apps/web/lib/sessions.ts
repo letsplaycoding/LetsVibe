@@ -71,6 +71,25 @@ export type OverviewSummary = {
   }>;
 };
 
+export type WeeklyReportSession = {
+  id: string;
+  createdAt: string;
+  featureName: string;
+  summary: string;
+  changedFilesCount: number;
+  changedFiles: string[];
+  tags: string[];
+  aiUsage: AiUsage;
+  portfolioText: string;
+  todos: string[];
+};
+
+export type WeeklyReportGroup = {
+  weekId: string;
+  weekRange: string;
+  sessions: WeeklyReportSession[];
+};
+
 type RawSession = {
   id?: string;
   createdAt?: string;
@@ -409,6 +428,66 @@ export function getOverviewSummary(): OverviewSummary {
       summary: session.summary
     }))
   };
+}
+
+function getWeekStart(date: Date): Date {
+  const weekStart = new Date(date);
+  const day = weekStart.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+
+  weekStart.setDate(weekStart.getDate() + mondayOffset);
+  weekStart.setHours(0, 0, 0, 0);
+
+  return weekStart;
+}
+
+function formatDateLabel(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function toWeeklyReportSession(session: SearchSession): WeeklyReportSession {
+  return {
+    id: session.id,
+    createdAt: session.createdAt,
+    featureName: session.featureName,
+    summary: session.summary,
+    changedFilesCount: session.changedFilesCount,
+    changedFiles: session.changedFiles,
+    tags: session.tags,
+    aiUsage: session.aiUsage,
+    portfolioText: session.portfolioText,
+    todos: session.todos
+  };
+}
+
+export function getWeeklyReportGroups(): WeeklyReportGroup[] {
+  const groups = new Map<string, WeeklyReportGroup>();
+
+  for (const session of getSearchSessions()) {
+    const createdAt = new Date(session.createdAt);
+    const validDate = Number.isNaN(createdAt.getTime()) ? new Date(0) : createdAt;
+    const weekStart = getWeekStart(validDate);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const weekId = formatDateLabel(weekStart);
+    const existingGroup = groups.get(weekId);
+
+    if (existingGroup) {
+      existingGroup.sessions.push(toWeeklyReportSession(session));
+      continue;
+    }
+
+    groups.set(weekId, {
+      weekId,
+      weekRange: `${formatDateLabel(weekStart)} to ${formatDateLabel(weekEnd)}`,
+      sessions: [toWeeklyReportSession(session)]
+    });
+  }
+
+  return Array.from(groups.values()).sort((a, b) =>
+    b.weekId.localeCompare(a.weekId)
+  );
 }
 
 export function getDashboardSession(id: string): SessionDetail | null {
