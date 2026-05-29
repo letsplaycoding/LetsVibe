@@ -236,6 +236,15 @@ h1 {
   padding: 12px 14px;
 }
 
+.loading-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(22, 24, 29, 0.04);
+  color: var(--muted);
+  padding: 22px;
+}
+
 .session-list {
   display: grid;
   gap: 12px;

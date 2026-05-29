@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
 export type DashboardSession = {
@@ -170,6 +170,25 @@ type RawSession = {
     future_improvements?: string[];
   };
 };
+
+type SessionCacheEntry = {
+  sessions: RawSession[];
+  lastLoadedAt: number;
+  signature: string;
+  sourceDirectoryMtimeMs: number;
+};
+
+type SessionSource = {
+  sessionsDir: string;
+  logsDir: string;
+};
+
+type SessionDetailContext = {
+  project: ProjectMetadata;
+  gitMetadata: GitMetadata | null;
+};
+
+const sessionCache = new Map<string, SessionCacheEntry>();
 
 function runGit(args: string[], cwd: string): string {
   return execFileSync("git", args, {
@@ -347,37 +366,114 @@ function readRawSessionsFromDir(sessionsDir: string, logsDir: string): RawSessio
     });
 }
 
+function getDirectoryMtimeMs(directory: string): number {
+  try {
+    return existsSync(directory) ? statSync(directory).mtimeMs : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function getSessionSourceSignature(source: SessionSource): string {
+  if (!existsSync(source.sessionsDir)) {
+    return `${source.sessionsDir}:missing`;
+  }
+
+  const files = readdirSync(source.sessionsDir)
+    .filter((file) => file.endsWith(".json"))
+    .sort();
+  const fileSignature = files
+    .map((file) => {
+      const filePath = join(source.sessionsDir, file);
+
+      try {
+        const stats = statSync(filePath);
+
+        return `${file}:${stats.mtimeMs}:${stats.size}`;
+      } catch {
+        return `${file}:missing`;
+      }
+    })
+    .join(",");
+
+  return `${source.sessionsDir}:${getDirectoryMtimeMs(source.sessionsDir)}:${fileSignature}`;
+}
+
+function getSessionSources(
+  repositoryRoot: string,
+  project: ProjectMetadata,
+  currentProject: ProjectMetadata
+): SessionSource[] {
+  const projectDir = join(repositoryRoot, ".vibelog", "projects", project.projectId);
+  const sources: SessionSource[] = [
+    {
+      sessionsDir: join(projectDir, "sessions"),
+      logsDir: join(projectDir, "logs")
+    }
+  ];
+
+  if (project.projectId === currentProject.projectId) {
+    sources.push({
+      sessionsDir: join(repositoryRoot, ".vibelog", "sessions"),
+      logsDir: join(repositoryRoot, ".vibelog", "logs")
+    });
+  }
+
+  return sources;
+}
+
+function shouldLogSessionLoad(): boolean {
+  return process.env.NODE_ENV === "development";
+}
+
 function readRawSessions(projectId?: string): RawSession[] {
   const repositoryRoot = getRepositoryRoot();
   const project = resolveProject(projectId);
   const currentProject = getCurrentProject();
-  const projectDir = getCurrentProjectDir(project.projectId);
-  const projectSessions = readRawSessionsFromDir(
-    join(projectDir, "sessions"),
-    join(projectDir, "logs")
+  const sources = getSessionSources(repositoryRoot, project, currentProject);
+  const signature = sources.map(getSessionSourceSignature).join("|");
+  const sourceDirectoryMtimeMs = Math.max(
+    ...sources.map((source) => getDirectoryMtimeMs(source.sessionsDir)),
+    0
   );
-  const legacySessions =
-    project.projectId === currentProject.projectId
-      ? readRawSessionsFromDir(
-          join(repositoryRoot, ".vibelog", "sessions"),
-          join(repositoryRoot, ".vibelog", "logs")
-        )
-      : [];
-  const sessionsById = new Map<string, RawSession>();
+  const cached = sessionCache.get(project.projectId);
 
-  for (const session of projectSessions) {
-    sessionsById.set(session.fileName ?? session.id ?? "", session);
+  if (cached?.signature === signature) {
+    return cached.sessions;
   }
 
-  for (const session of legacySessions) {
-    const key = session.fileName ?? session.id ?? "";
+  const startedAt = Date.now();
+  const sessionsById = new Map<string, RawSession>();
 
-    if (!sessionsById.has(key)) {
-      sessionsById.set(key, session);
+  for (const source of sources) {
+    for (const session of readRawSessionsFromDir(
+      source.sessionsDir,
+      source.logsDir
+    )) {
+      const key = session.fileName ?? session.id ?? "";
+
+      if (!sessionsById.has(key)) {
+        sessionsById.set(key, session);
+      }
     }
   }
 
-  return Array.from(sessionsById.values());
+  const sessions = Array.from(sessionsById.values());
+  const loadDurationMs = Date.now() - startedAt;
+  sessionCache.set(project.projectId, {
+    sessions,
+    lastLoadedAt: Date.now(),
+    signature,
+    sourceDirectoryMtimeMs
+  });
+
+  if (shouldLogSessionLoad()) {
+    console.info(
+      `[VibeLog] loaded ${sessions.length} sessions for ${project.projectId} in ${loadDurationMs}ms`
+    );
+  }
+
+  return sessions;
 }
 
 function readEnvValue(key: string): string | null {
@@ -510,10 +606,12 @@ function normalizeTagValues(tags: string[]): string[] {
 function toSessionDetail(
   rawSession: RawSession,
   file: string,
-  selectedProjectId?: string
+  selectedProjectId?: string,
+  context?: SessionDetailContext
 ): SessionDetail {
-  const project = resolveProject(selectedProjectId);
-  const gitMetadata = project.isCurrent ? getGitMetadata() : null;
+  const project = context?.project ?? resolveProject(selectedProjectId);
+  const gitMetadata =
+    context?.gitMetadata ?? (project.isCurrent ? getGitMetadata() : null);
   const id = file.replace(/\.json$/, "");
   const featureName = rawSession.analysis?.feature_name ?? "Development Session";
   const changedFiles = rawSession.git?.changedFiles ?? [];
@@ -556,12 +654,19 @@ function toSessionDetail(
 }
 
 export function getDashboardSessions(projectId?: string): DashboardSession[] {
+  const project = resolveProject(projectId);
+  const context: SessionDetailContext = {
+    project,
+    gitMetadata: project.isCurrent ? getGitMetadata() : null
+  };
+
   return readRawSessions(projectId)
     .map((rawSession) => {
       const session = toSessionDetail(
         rawSession,
         rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
-        projectId
+        project.projectId,
+        context
       );
 
       return {
@@ -586,12 +691,19 @@ export function getDashboardSessions(projectId?: string): DashboardSession[] {
 }
 
 export function getPortfolioSessions(projectId?: string): PortfolioSession[] {
+  const project = resolveProject(projectId);
+  const context: SessionDetailContext = {
+    project,
+    gitMetadata: project.isCurrent ? getGitMetadata() : null
+  };
+
   return readRawSessions(projectId)
     .map((rawSession) => {
       const session = toSessionDetail(
         rawSession,
         rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
-        projectId
+        project.projectId,
+        context
       );
 
       return {
@@ -617,12 +729,19 @@ export function getPortfolioSessions(projectId?: string): PortfolioSession[] {
 }
 
 export function getSearchSessions(projectId?: string): SearchSession[] {
+  const project = resolveProject(projectId);
+  const context: SessionDetailContext = {
+    project,
+    gitMetadata: project.isCurrent ? getGitMetadata() : null
+  };
+
   return readRawSessions(projectId)
     .map((rawSession) =>
       toSessionDetail(
         rawSession,
         rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
-        projectId
+        project.projectId,
+        context
       )
     )
     .sort(
@@ -637,11 +756,16 @@ export function getCompareSessions(projectId?: string): CompareSession[] {
 
 export function getSettingsSummary(projectId?: string): SettingsSummary {
   const project = resolveProject(projectId);
+  const context: SessionDetailContext = {
+    project,
+    gitMetadata: project.isCurrent ? getGitMetadata() : null
+  };
   const sessions = readRawSessions(project.projectId).map((rawSession) =>
     toSessionDetail(
       rawSession,
       rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
-      project.projectId
+      project.projectId,
+      context
     )
   );
   const apiKeyConfigured = readEnvValue("OPENAI_API_KEY") !== null;
@@ -822,27 +946,24 @@ export function getDashboardSession(
   projectId?: string
 ): SessionDetail | null {
   const project = resolveProject(projectId);
-  const projectDir = getCurrentProjectDir(project.projectId);
-  const projectSessionPath = join(projectDir, "sessions", `${id}.json`);
-  const legacySessionPath = join(
-    getRepositoryRoot(),
-    ".vibelog",
-    "sessions",
-    `${id}.json`
-  );
-  const sessionPath = existsSync(projectSessionPath)
-    ? projectSessionPath
-    : legacySessionPath;
+  const context: SessionDetailContext = {
+    project,
+    gitMetadata: project.isCurrent ? getGitMetadata() : null
+  };
+  const rawSession = readRawSessions(project.projectId).find((session) => {
+    const sessionId = session.fileName?.replace(/\.json$/, "") ?? session.id;
 
-  if (!existsSync(sessionPath)) {
+    return sessionId === id || session.id === id;
+  });
+
+  if (!rawSession) {
     return null;
   }
 
-  const rawSession = JSON.parse(readFileSync(sessionPath, "utf8")) as RawSession;
-  const logsDir =
-    sessionPath === projectSessionPath
-      ? join(projectDir, "logs")
-      : join(getRepositoryRoot(), ".vibelog", "logs");
-
-  return toSessionDetail({ ...rawSession, logsDir }, `${id}.json`, project.projectId);
+  return toSessionDetail(
+    rawSession,
+    rawSession.fileName ?? `${id}.json`,
+    project.projectId,
+    context
+  );
 }
