@@ -80,6 +80,12 @@ export function DashboardView({ projectId }: DashboardViewProps) {
             </Link>
             <Link
               className="button secondary"
+              href={`/dashboard/project/${project.projectId}/career`}
+            >
+              Career Mode
+            </Link>
+            <Link
+              className="button secondary"
               href={projectHref("/dashboard/settings", project.projectId)}
             >
               Settings
