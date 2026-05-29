@@ -7,6 +7,7 @@ import type { PortfolioSession } from "../../../lib/sessions";
 import { exportPortfolioMarkdown } from "./actions";
 
 type PortfolioGeneratorProps = {
+  projectId?: string;
   sessions: PortfolioSession[];
 };
 
@@ -39,7 +40,10 @@ function buildPortfolioMarkdown(sessions: PortfolioSession[]): string {
   ].join("\n");
 }
 
-export function PortfolioGenerator({ sessions }: PortfolioGeneratorProps) {
+export function PortfolioGenerator({
+  projectId,
+  sessions
+}: PortfolioGeneratorProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [generatedMarkdown, setGeneratedMarkdown] = useState("");
   const [copyLabel, setCopyLabel] = useState("Copy");
@@ -83,7 +87,7 @@ export function PortfolioGenerator({ sessions }: PortfolioGeneratorProps) {
     setExportMessage("");
 
     try {
-      const filePath = await exportPortfolioMarkdown(generatedMarkdown);
+      const filePath = await exportPortfolioMarkdown(generatedMarkdown, projectId);
       setExportMessage(`Saved to ${filePath}`);
     } finally {
       setIsExporting(false);

@@ -150,6 +150,20 @@ h1 {
   font-weight: 700;
 }
 
+.project-selector {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  max-width: 320px;
+}
+
+.project-selector span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .session-count {
   align-items: center;
   background: var(--panel);

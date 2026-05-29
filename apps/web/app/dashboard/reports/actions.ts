@@ -14,9 +14,10 @@ function sanitizeWeekId(weekId: string): string {
 
 export async function exportWeeklyReportMarkdown(
   weekId: string,
-  markdown: string
+  markdown: string,
+  projectId?: string
 ): Promise<string> {
-  const reportsDir = join(getCurrentProjectDir(), "reports");
+  const reportsDir = join(getCurrentProjectDir(projectId), "reports");
   await mkdir(reportsDir, { recursive: true });
 
   const filePath = join(

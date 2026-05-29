@@ -7,17 +7,26 @@ function formatCost(value: number): string {
   return `$${value.toFixed(6)}`;
 }
 
-export default function OverviewPage() {
-  const overview = getOverviewSummary();
+type OverviewPageProps = {
+  searchParams: Promise<{
+    project?: string;
+  }>;
+};
+
+export default async function OverviewPage({ searchParams }: OverviewPageProps) {
+  const { project } = await searchParams;
+  const overview = getOverviewSummary(project);
+  const dashboardHref = project ? `/dashboard/project/${project}` : "/dashboard";
+  const projectQuery = project ? `?project=${encodeURIComponent(project)}` : "";
 
   return (
     <main className="page">
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
-          <Link className="brand" href="/dashboard">
+          <Link className="brand" href={dashboardHref}>
             VibeLog
           </Link>
-          <Link className="button secondary" href="/dashboard">
+          <Link className="button secondary" href={dashboardHref}>
             Back to Dashboard
           </Link>
         </nav>
@@ -82,7 +91,7 @@ export default function OverviewPage() {
                 {overview.recentActivity.map((session) => (
                   <Link
                     className="activity-item"
-                    href={`/dashboard/session/${session.id}`}
+                    href={`/dashboard/session/${session.id}${projectQuery}`}
                     key={session.id}
                   >
                     <strong>{session.featureName}</strong>

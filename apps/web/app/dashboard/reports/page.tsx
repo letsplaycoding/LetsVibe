@@ -4,17 +4,25 @@ import { WeeklyReportGenerator } from "./weekly-report-generator";
 
 export const dynamic = "force-dynamic";
 
-export default function ReportsPage() {
-  const groups = getWeeklyReportGroups();
+type ReportsPageProps = {
+  searchParams: Promise<{
+    project?: string;
+  }>;
+};
+
+export default async function ReportsPage({ searchParams }: ReportsPageProps) {
+  const { project } = await searchParams;
+  const groups = getWeeklyReportGroups(project);
+  const dashboardHref = project ? `/dashboard/project/${project}` : "/dashboard";
 
   return (
     <main className="page">
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
-          <Link className="brand" href="/dashboard">
+          <Link className="brand" href={dashboardHref}>
             VibeLog
           </Link>
-          <Link className="button secondary" href="/dashboard">
+          <Link className="button secondary" href={dashboardHref}>
             Back to Dashboard
           </Link>
         </nav>
@@ -27,7 +35,7 @@ export default function ReportsPage() {
           </p>
         </header>
 
-        <WeeklyReportGenerator groups={groups} />
+        <WeeklyReportGenerator groups={groups} projectId={project} />
       </div>
     </main>
   );

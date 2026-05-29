@@ -11,6 +11,9 @@ type SessionPageProps = {
   params: Promise<{
     id: string;
   }>;
+  searchParams: Promise<{
+    project?: string;
+  }>;
 };
 
 function formatRelativePath(filePath: string): string {
@@ -23,18 +26,23 @@ function formatCost(value: number): string {
   return `$${value.toFixed(6)}`;
 }
 
-export default async function SessionPage({ params }: SessionPageProps) {
+export default async function SessionPage({
+  params,
+  searchParams
+}: SessionPageProps) {
   const { id } = await params;
-  const session = getDashboardSession(id);
+  const { project } = await searchParams;
+  const session = getDashboardSession(id, project);
+  const dashboardHref = project ? `/dashboard/project/${project}` : "/dashboard";
 
   return (
     <main className="page">
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
-          <Link className="brand" href="/dashboard">
+          <Link className="brand" href={dashboardHref}>
             VibeLog
           </Link>
-          <Link className="button secondary" href="/dashboard">
+          <Link className="button secondary" href={dashboardHref}>
             Back to Dashboard
           </Link>
         </nav>

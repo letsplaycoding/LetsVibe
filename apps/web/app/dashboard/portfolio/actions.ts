@@ -8,8 +8,11 @@ function createPortfolioId(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
-export async function exportPortfolioMarkdown(markdown: string): Promise<string> {
-  const portfolioDir = join(getCurrentProjectDir(), "portfolio");
+export async function exportPortfolioMarkdown(
+  markdown: string,
+  projectId?: string
+): Promise<string> {
+  const portfolioDir = join(getCurrentProjectDir(projectId), "portfolio");
   await mkdir(portfolioDir, { recursive: true });
 
   const filePath = join(

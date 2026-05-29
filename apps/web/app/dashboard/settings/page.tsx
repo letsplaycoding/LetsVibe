@@ -7,17 +7,25 @@ function formatCost(value: number): string {
   return `$${value.toFixed(6)}`;
 }
 
-export default function SettingsPage() {
-  const settings = getSettingsSummary();
+type SettingsPageProps = {
+  searchParams: Promise<{
+    project?: string;
+  }>;
+};
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
+  const { project } = await searchParams;
+  const settings = getSettingsSummary(project);
+  const dashboardHref = project ? `/dashboard/project/${project}` : "/dashboard";
 
   return (
     <main className="page">
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
-          <Link className="brand" href="/dashboard">
+          <Link className="brand" href={dashboardHref}>
             VibeLog
           </Link>
-          <Link className="button secondary" href="/dashboard">
+          <Link className="button secondary" href={dashboardHref}>
             Back to Dashboard
           </Link>
         </nav>

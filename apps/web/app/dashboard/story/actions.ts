@@ -202,8 +202,10 @@ async function buildOpenAIStory(
   return markdown;
 }
 
-export async function generateProjectStoryMarkdown(): Promise<StoryResult> {
-  const sessions = getStorySessions();
+export async function generateProjectStoryMarkdown(
+  projectId?: string
+): Promise<StoryResult> {
+  const sessions = getStorySessions(projectId);
   const apiKey = readEnvValue("OPENAI_API_KEY");
 
   if (!apiKey) {
@@ -226,8 +228,11 @@ export async function generateProjectStoryMarkdown(): Promise<StoryResult> {
   }
 }
 
-export async function exportStoryMarkdown(markdown: string): Promise<string> {
-  const storiesDir = join(getCurrentProjectDir(), "stories");
+export async function exportStoryMarkdown(
+  markdown: string,
+  projectId?: string
+): Promise<string> {
+  const storiesDir = join(getCurrentProjectDir(projectId), "stories");
   await mkdir(storiesDir, { recursive: true });
 
   const filePath = join(storiesDir, `story-${createStoryId(new Date())}.md`);

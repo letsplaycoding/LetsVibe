@@ -8,8 +8,11 @@ function createReadmeId(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
-export async function exportReadmeMarkdown(markdown: string): Promise<string> {
-  const readmeDir = join(getCurrentProjectDir(), "readme");
+export async function exportReadmeMarkdown(
+  markdown: string,
+  projectId?: string
+): Promise<string> {
+  const readmeDir = join(getCurrentProjectDir(projectId), "readme");
   await mkdir(readmeDir, { recursive: true });
 
   const filePath = join(readmeDir, `readme-${createReadmeId(new Date())}.md`);

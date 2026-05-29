@@ -7,10 +7,15 @@ import { exportStoryMarkdown } from "./actions";
 
 type StoryViewerProps = {
   initialMarkdown: string;
+  projectId?: string;
   provider: "openai" | "mock";
 };
 
-export function StoryViewer({ initialMarkdown, provider }: StoryViewerProps) {
+export function StoryViewer({
+  initialMarkdown,
+  projectId,
+  provider
+}: StoryViewerProps) {
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [exportMessage, setExportMessage] = useState("");
   const [isExporting, setIsExporting] = useState(false);
@@ -33,7 +38,7 @@ export function StoryViewer({ initialMarkdown, provider }: StoryViewerProps) {
     setExportMessage("");
 
     try {
-      const filePath = await exportStoryMarkdown(initialMarkdown);
+      const filePath = await exportStoryMarkdown(initialMarkdown, projectId);
       setExportMessage(`Saved to ${filePath}`);
     } finally {
       setIsExporting(false);

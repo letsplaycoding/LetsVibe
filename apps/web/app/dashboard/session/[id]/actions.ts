@@ -85,9 +85,17 @@ function validateList(values: string[], label: string): string[] {
 
 export async function saveSessionAnalysis(
   id: string,
-  analysis: EditableSessionAnalysis
+  analysis: EditableSessionAnalysis,
+  projectId?: string
 ): Promise<void> {
-  const sessionPath = getSessionPath(id);
+  const projectSessionPath = join(
+    getCurrentProjectDir(projectId),
+    "sessions",
+    `${id}.json`
+  );
+  const sessionPath = existsSync(projectSessionPath)
+    ? projectSessionPath
+    : getSessionPath(id);
 
   if (!existsSync(sessionPath)) {
     throw new Error("Session not found.");

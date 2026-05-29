@@ -4,17 +4,25 @@ import { CompareView } from "./compare-view";
 
 export const dynamic = "force-dynamic";
 
-export default function ComparePage() {
-  const sessions = getCompareSessions();
+type ComparePageProps = {
+  searchParams: Promise<{
+    project?: string;
+  }>;
+};
+
+export default async function ComparePage({ searchParams }: ComparePageProps) {
+  const { project } = await searchParams;
+  const sessions = getCompareSessions(project);
+  const dashboardHref = project ? `/dashboard/project/${project}` : "/dashboard";
 
   return (
     <main className="page">
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
-          <Link className="brand" href="/dashboard">
+          <Link className="brand" href={dashboardHref}>
             VibeLog
           </Link>
-          <Link className="button secondary" href="/dashboard">
+          <Link className="button secondary" href={dashboardHref}>
             Back to Dashboard
           </Link>
         </nav>

@@ -7,6 +7,7 @@ import type { PortfolioSession } from "../../../lib/sessions";
 import { exportReadmeMarkdown } from "./actions";
 
 type ReadmeGeneratorProps = {
+  projectId?: string;
   sessions: PortfolioSession[];
 };
 
@@ -57,7 +58,7 @@ function buildReadmeMarkdown(sessions: PortfolioSession[]): string {
   ].join("\n");
 }
 
-export function ReadmeGenerator({ sessions }: ReadmeGeneratorProps) {
+export function ReadmeGenerator({ projectId, sessions }: ReadmeGeneratorProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [generatedMarkdown, setGeneratedMarkdown] = useState("");
   const [copyLabel, setCopyLabel] = useState("Copy");
@@ -101,7 +102,7 @@ export function ReadmeGenerator({ sessions }: ReadmeGeneratorProps) {
     setExportMessage("");
 
     try {
-      const filePath = await exportReadmeMarkdown(generatedMarkdown);
+      const filePath = await exportReadmeMarkdown(generatedMarkdown, projectId);
       setExportMessage(`Saved to ${filePath}`);
     } finally {
       setIsExporting(false);

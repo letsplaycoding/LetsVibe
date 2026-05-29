@@ -4,17 +4,25 @@ import { TimelineView } from "./timeline-view";
 
 export const dynamic = "force-dynamic";
 
-export default function TimelinePage() {
-  const sessions = getDashboardSessions();
+type TimelinePageProps = {
+  searchParams: Promise<{
+    project?: string;
+  }>;
+};
+
+export default async function TimelinePage({ searchParams }: TimelinePageProps) {
+  const { project } = await searchParams;
+  const sessions = getDashboardSessions(project);
+  const dashboardHref = project ? `/dashboard/project/${project}` : "/dashboard";
 
   return (
     <main className="page">
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
-          <Link className="brand" href="/dashboard">
+          <Link className="brand" href={dashboardHref}>
             VibeLog
           </Link>
-          <Link className="button secondary" href="/dashboard">
+          <Link className="button secondary" href={dashboardHref}>
             Back to Dashboard
           </Link>
         </nav>

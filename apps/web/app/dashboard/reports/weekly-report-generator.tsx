@@ -8,6 +8,7 @@ import { exportWeeklyReportMarkdown } from "./actions";
 
 type WeeklyReportGeneratorProps = {
   groups: WeeklyReportGroup[];
+  projectId?: string;
 };
 
 function uniqueValues(values: string[]): string[] {
@@ -82,7 +83,10 @@ function buildWeeklyReportMarkdown(group: WeeklyReportGroup): string {
   ].join("\n");
 }
 
-export function WeeklyReportGenerator({ groups }: WeeklyReportGeneratorProps) {
+export function WeeklyReportGenerator({
+  groups,
+  projectId
+}: WeeklyReportGeneratorProps) {
   const [selectedWeekId, setSelectedWeekId] = useState(groups[0]?.weekId ?? "");
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [exportMessage, setExportMessage] = useState("");
@@ -116,7 +120,8 @@ export function WeeklyReportGenerator({ groups }: WeeklyReportGeneratorProps) {
     try {
       const filePath = await exportWeeklyReportMarkdown(
         selectedGroup.weekId,
-        generatedMarkdown
+        generatedMarkdown,
+        projectId
       );
       setExportMessage(`Saved to ${filePath}`);
     } finally {

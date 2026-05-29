@@ -72,6 +72,8 @@ export type OverviewSummary = {
   } | null;
   recentActivity: Array<{
     id: string;
+    projectId: string;
+    projectName: string;
     featureName: string;
     createdAt: string;
     summary: string;
@@ -115,6 +117,8 @@ export type StorySession = {
 export type ProjectMetadata = {
   projectId: string;
   projectName: string;
+  sessionCount: number;
+  isCurrent: boolean;
 };
 
 type RawSession = {
@@ -170,12 +174,70 @@ export function getCurrentProject(): ProjectMetadata {
 
   return {
     projectId: createProjectId(projectName),
-    projectName
+    projectName,
+    sessionCount: 0,
+    isCurrent: true
   };
 }
 
-export function getCurrentProjectDir(): string {
-  const project = getCurrentProject();
+export function getAvailableProjects(): ProjectMetadata[] {
+  const repositoryRoot = getRepositoryRoot();
+  const currentProject = getCurrentProject();
+  const projectsDir = join(repositoryRoot, ".vibelog", "projects");
+  const projects = new Map<string, ProjectMetadata>();
+
+  projects.set(currentProject.projectId, currentProject);
+
+  if (existsSync(projectsDir)) {
+    for (const projectId of readdirSync(projectsDir)) {
+      const projectDir = join(projectsDir, projectId);
+      const sessionsDir = join(projectDir, "sessions");
+      const sessionCount = existsSync(sessionsDir)
+        ? readdirSync(sessionsDir).filter((file) => file.endsWith(".json")).length
+        : 0;
+
+      projects.set(projectId, {
+        projectId,
+        projectName: projectId,
+        sessionCount,
+        isCurrent: projectId === currentProject.projectId
+      });
+    }
+  }
+
+  const legacySessionsDir = join(repositoryRoot, ".vibelog", "sessions");
+  const legacyCount = existsSync(legacySessionsDir)
+    ? readdirSync(legacySessionsDir).filter((file) => file.endsWith(".json")).length
+    : 0;
+
+  if (legacyCount > 0) {
+    const current = projects.get(currentProject.projectId) ?? currentProject;
+    projects.set(currentProject.projectId, {
+      ...current,
+      projectName: currentProject.projectName,
+      sessionCount: current.sessionCount + legacyCount,
+      isCurrent: true
+    });
+  }
+
+  return Array.from(projects.values()).sort((a, b) =>
+    a.projectName.localeCompare(b.projectName)
+  );
+}
+
+export function resolveProject(projectId?: string): ProjectMetadata {
+  const projects = getAvailableProjects();
+  const currentProject = getCurrentProject();
+
+  return (
+    projects.find((project) => project.projectId === projectId) ??
+    projects.find((project) => project.projectId === currentProject.projectId) ??
+    currentProject
+  );
+}
+
+export function getCurrentProjectDir(projectId?: string): string {
+  const project = resolveProject(projectId);
 
   return join(getRepositoryRoot(), ".vibelog", "projects", project.projectId);
 }
@@ -200,17 +262,22 @@ function readRawSessionsFromDir(sessionsDir: string, logsDir: string): RawSessio
     });
 }
 
-function readRawSessions(): RawSession[] {
+function readRawSessions(projectId?: string): RawSession[] {
   const repositoryRoot = getRepositoryRoot();
-  const projectDir = getCurrentProjectDir();
+  const project = resolveProject(projectId);
+  const currentProject = getCurrentProject();
+  const projectDir = getCurrentProjectDir(project.projectId);
   const projectSessions = readRawSessionsFromDir(
     join(projectDir, "sessions"),
     join(projectDir, "logs")
   );
-  const legacySessions = readRawSessionsFromDir(
-    join(repositoryRoot, ".vibelog", "sessions"),
-    join(repositoryRoot, ".vibelog", "logs")
-  );
+  const legacySessions =
+    project.projectId === currentProject.projectId
+      ? readRawSessionsFromDir(
+          join(repositoryRoot, ".vibelog", "sessions"),
+          join(repositoryRoot, ".vibelog", "logs")
+        )
+      : [];
   const sessionsById = new Map<string, RawSession>();
 
   for (const session of projectSessions) {
@@ -355,8 +422,12 @@ function normalizeTagValues(tags: string[]): string[] {
   );
 }
 
-function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
-  const project = getCurrentProject();
+function toSessionDetail(
+  rawSession: RawSession,
+  file: string,
+  selectedProjectId?: string
+): SessionDetail {
+  const project = resolveProject(selectedProjectId);
   const id = file.replace(/\.json$/, "");
   const featureName = rawSession.analysis?.feature_name ?? "Development Session";
   const changedFiles = rawSession.git?.changedFiles ?? [];
@@ -389,17 +460,18 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
     markdownPreview: readMarkdownPreview(
       id,
       featureName,
-      rawSession.logsDir ?? join(getCurrentProjectDir(), "logs")
+      rawSession.logsDir ?? join(getCurrentProjectDir(project.projectId), "logs")
     )
   };
 }
 
-export function getDashboardSessions(): DashboardSession[] {
-  return readRawSessions()
+export function getDashboardSessions(projectId?: string): DashboardSession[] {
+  return readRawSessions(projectId)
     .map((rawSession) => {
       const session = toSessionDetail(
         rawSession,
-        rawSession.fileName ?? `${rawSession.id ?? ""}.json`
+        rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
+        projectId
       );
 
       return {
@@ -419,12 +491,13 @@ export function getDashboardSessions(): DashboardSession[] {
     );
 }
 
-export function getPortfolioSessions(): PortfolioSession[] {
-  return readRawSessions()
+export function getPortfolioSessions(projectId?: string): PortfolioSession[] {
+  return readRawSessions(projectId)
     .map((rawSession) => {
       const session = toSessionDetail(
         rawSession,
-        rawSession.fileName ?? `${rawSession.id ?? ""}.json`
+        rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
+        projectId
       );
 
       return {
@@ -445,10 +518,14 @@ export function getPortfolioSessions(): PortfolioSession[] {
     );
 }
 
-export function getSearchSessions(): SearchSession[] {
-  return readRawSessions()
+export function getSearchSessions(projectId?: string): SearchSession[] {
+  return readRawSessions(projectId)
     .map((rawSession) =>
-      toSessionDetail(rawSession, rawSession.fileName ?? `${rawSession.id ?? ""}.json`)
+      toSessionDetail(
+        rawSession,
+        rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
+        projectId
+      )
     )
     .sort(
       (a, b) =>
@@ -456,14 +533,18 @@ export function getSearchSessions(): SearchSession[] {
     );
 }
 
-export function getCompareSessions(): CompareSession[] {
-  return getSearchSessions();
+export function getCompareSessions(projectId?: string): CompareSession[] {
+  return getSearchSessions(projectId);
 }
 
-export function getSettingsSummary(): SettingsSummary {
-  const project = getCurrentProject();
-  const sessions = readRawSessions().map((rawSession) =>
-    toSessionDetail(rawSession, rawSession.fileName ?? `${rawSession.id ?? ""}.json`)
+export function getSettingsSummary(projectId?: string): SettingsSummary {
+  const project = resolveProject(projectId);
+  const sessions = readRawSessions(project.projectId).map((rawSession) =>
+    toSessionDetail(
+      rawSession,
+      rawSession.fileName ?? `${rawSession.id ?? ""}.json`,
+      project.projectId
+    )
   );
   const apiKeyConfigured = readEnvValue("OPENAI_API_KEY") !== null;
   const totals = sessions.reduce(
@@ -498,9 +579,9 @@ export function getSettingsSummary(): SettingsSummary {
   };
 }
 
-export function getOverviewSummary(): OverviewSummary {
-  const project = getCurrentProject();
-  const sessions = getSearchSessions();
+export function getOverviewSummary(projectId?: string): OverviewSummary {
+  const project = resolveProject(projectId);
+  const sessions = getSearchSessions(project.projectId);
   const tagCounts = new Map<string, number>();
   const dayCounts = new Map<string, number>();
 
@@ -546,6 +627,8 @@ export function getOverviewSummary(): OverviewSummary {
     mostActiveDay,
     recentActivity: sessions.slice(0, 5).map((session) => ({
       id: session.id,
+      projectId: session.projectId,
+      projectName: session.projectName,
       featureName: session.featureName,
       createdAt: session.createdAt,
       summary: session.summary
@@ -583,10 +666,10 @@ function toWeeklyReportSession(session: SearchSession): WeeklyReportSession {
   };
 }
 
-export function getWeeklyReportGroups(): WeeklyReportGroup[] {
+export function getWeeklyReportGroups(projectId?: string): WeeklyReportGroup[] {
   const groups = new Map<string, WeeklyReportGroup>();
 
-  for (const session of getSearchSessions()) {
+  for (const session of getSearchSessions(projectId)) {
     const createdAt = new Date(session.createdAt);
     const validDate = Number.isNaN(createdAt.getTime()) ? new Date(0) : createdAt;
     const weekStart = getWeekStart(validDate);
@@ -613,8 +696,8 @@ export function getWeeklyReportGroups(): WeeklyReportGroup[] {
   );
 }
 
-export function getStorySessions(): StorySession[] {
-  return getSearchSessions()
+export function getStorySessions(projectId?: string): StorySession[] {
+  return getSearchSessions(projectId)
     .slice()
     .sort(
       (a, b) =>
@@ -636,8 +719,12 @@ export function getStorySessions(): StorySession[] {
     }));
 }
 
-export function getDashboardSession(id: string): SessionDetail | null {
-  const projectDir = getCurrentProjectDir();
+export function getDashboardSession(
+  id: string,
+  projectId?: string
+): SessionDetail | null {
+  const project = resolveProject(projectId);
+  const projectDir = getCurrentProjectDir(project.projectId);
   const projectSessionPath = join(projectDir, "sessions", `${id}.json`);
   const legacySessionPath = join(
     getRepositoryRoot(),
@@ -659,5 +746,5 @@ export function getDashboardSession(id: string): SessionDetail | null {
       ? join(projectDir, "logs")
       : join(getRepositoryRoot(), ".vibelog", "logs");
 
-  return toSessionDetail({ ...rawSession, logsDir }, `${id}.json`);
+  return toSessionDetail({ ...rawSession, logsDir }, `${id}.json`, project.projectId);
 }

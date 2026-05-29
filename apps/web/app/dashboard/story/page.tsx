@@ -4,17 +4,25 @@ import { StoryViewer } from "./story-viewer";
 
 export const dynamic = "force-dynamic";
 
-export default async function StoryPage() {
-  const story = await generateProjectStoryMarkdown();
+type StoryPageProps = {
+  searchParams: Promise<{
+    project?: string;
+  }>;
+};
+
+export default async function StoryPage({ searchParams }: StoryPageProps) {
+  const { project } = await searchParams;
+  const story = await generateProjectStoryMarkdown(project);
+  const dashboardHref = project ? `/dashboard/project/${project}` : "/dashboard";
 
   return (
     <main className="page">
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
-          <Link className="brand" href="/dashboard">
+          <Link className="brand" href={dashboardHref}>
             VibeLog
           </Link>
-          <Link className="button secondary" href="/dashboard">
+          <Link className="button secondary" href={dashboardHref}>
             Back to Dashboard
           </Link>
         </nav>
@@ -28,6 +36,7 @@ export default async function StoryPage() {
 
         <StoryViewer
           initialMarkdown={story.markdown}
+          projectId={project}
           provider={story.provider}
         />
       </div>

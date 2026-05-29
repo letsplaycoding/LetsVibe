@@ -198,7 +198,9 @@ export function SearchView({ sessions }: SearchViewProps) {
           {results.map((session) => (
             <Link
               className="session-card"
-              href={`/dashboard/session/${session.id}`}
+              href={`/dashboard/session/${session.id}?project=${encodeURIComponent(
+                session.projectId
+              )}`}
               key={session.id}
             >
               <div>

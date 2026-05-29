@@ -72,7 +72,7 @@ export function SessionEditor({ session }: SessionEditorProps) {
           todos: textToList(formState.todos),
           portfolioText: formState.portfolioText,
           futureImprovements: textToList(formState.futureImprovements)
-        });
+        }, session.projectId);
         setIsEditing(false);
         router.refresh();
       } catch (error) {
