@@ -47,6 +47,9 @@ export default function DashboardPage() {
             <Link className="button secondary" href="/dashboard/reports">
               Reports
             </Link>
+            <Link className="button secondary" href="/dashboard/story">
+              Project Story
+            </Link>
             <Link className="button secondary" href="/dashboard/settings">
               Settings
             </Link>

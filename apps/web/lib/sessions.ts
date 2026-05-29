@@ -91,6 +91,19 @@ export type WeeklyReportGroup = {
   sessions: WeeklyReportSession[];
 };
 
+export type StorySession = {
+  id: string;
+  createdAt: string;
+  featureName: string;
+  summary: string;
+  changedFilesCount: number;
+  tags: string[];
+  risks: string[];
+  todos: string[];
+  futureImprovements: string[];
+  portfolioText: string;
+};
+
 type RawSession = {
   fileName?: string;
   id?: string;
@@ -514,6 +527,27 @@ export function getWeeklyReportGroups(): WeeklyReportGroup[] {
   return Array.from(groups.values()).sort((a, b) =>
     b.weekId.localeCompare(a.weekId)
   );
+}
+
+export function getStorySessions(): StorySession[] {
+  return getSearchSessions()
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    )
+    .map((session) => ({
+      id: session.id,
+      createdAt: session.createdAt,
+      featureName: session.featureName,
+      summary: session.summary,
+      changedFilesCount: session.changedFilesCount,
+      tags: session.tags,
+      risks: session.risks,
+      todos: session.todos,
+      futureImprovements: session.futureImprovements,
+      portfolioText: session.portfolioText
+    }));
 }
 
 export function getDashboardSession(id: string): SessionDetail | null {
