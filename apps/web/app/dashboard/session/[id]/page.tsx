@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getDashboardSession } from "../../../../lib/sessions";
 import { DiffViewer } from "./diff-viewer";
+import { SessionEditor } from "./session-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,8 @@ export default async function SessionPage({ params }: SessionPageProps) {
             </section>
 
             <section className="detail-grid" aria-label="Session details">
+              <SessionEditor session={session} />
+
               <article className="detail-panel">
                 <h2>User Note</h2>
                 <p>{session.userNote || "(empty)"}</p>
@@ -111,6 +114,19 @@ export default async function SessionPage({ params }: SessionPageProps) {
               <article className="detail-panel wide">
                 <h2>Portfolio Text</h2>
                 <p>{session.portfolioText || "(empty)"}</p>
+              </article>
+
+              <article className="detail-panel wide">
+                <h2>Future Improvements</h2>
+                {session.futureImprovements.length === 0 ? (
+                  <p>None</p>
+                ) : (
+                  <ul>
+                    {session.futureImprovements.map((improvement) => (
+                      <li key={improvement}>{improvement}</li>
+                    ))}
+                  </ul>
+                )}
               </article>
 
               <article className="detail-panel wide">

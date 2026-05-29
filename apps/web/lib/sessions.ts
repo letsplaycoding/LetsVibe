@@ -15,6 +15,7 @@ export type SessionDetail = DashboardSession & {
   changedFiles: string[];
   risks: string[];
   todos: string[];
+  futureImprovements: string[];
   portfolioText: string;
   aiUsage: AiUsage;
   gitStatus: string;
@@ -91,6 +92,7 @@ export type WeeklyReportGroup = {
 };
 
 type RawSession = {
+  fileName?: string;
   id?: string;
   createdAt?: string;
   note?: string;
@@ -138,7 +140,14 @@ function readRawSessions(): RawSession[] {
   return readdirSync(sessionsDir)
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
-      return JSON.parse(readFileSync(join(sessionsDir, file), "utf8")) as RawSession;
+      const rawSession = JSON.parse(
+        readFileSync(join(sessionsDir, file), "utf8")
+      ) as RawSession;
+
+      return {
+        ...rawSession,
+        fileName: file
+      };
     });
 }
 
@@ -194,18 +203,26 @@ function createSlug(value: string): string {
 }
 
 function readMarkdownPreview(id: string, featureName: string): string | null {
-  const markdownPath = join(
-    getRepositoryRoot(),
-    ".vibelog",
-    "logs",
-    `${id}-${createSlug(featureName)}.md`
-  );
+  const logsDir = join(getRepositoryRoot(), ".vibelog", "logs");
+  const markdownPath = join(logsDir, `${id}-${createSlug(featureName)}.md`);
 
-  if (!existsSync(markdownPath)) {
+  if (existsSync(markdownPath)) {
+    return readFileSync(markdownPath, "utf8");
+  }
+
+  if (!existsSync(logsDir)) {
     return null;
   }
 
-  return readFileSync(markdownPath, "utf8");
+  const fallbackFile = readdirSync(logsDir).find(
+    (file) => file.startsWith(`${id}-`) && file.endsWith(".md")
+  );
+
+  if (!fallbackFile) {
+    return null;
+  }
+
+  return readFileSync(join(logsDir, fallbackFile), "utf8");
 }
 
 function generateTags(rawSession: RawSession): string[] {
@@ -259,7 +276,7 @@ function normalizeTagValues(tags: string[]): string[] {
 }
 
 function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
-  const id = rawSession.id ?? file.replace(/\.json$/, "");
+  const id = file.replace(/\.json$/, "");
   const featureName = rawSession.analysis?.feature_name ?? "Development Session";
   const changedFiles = rawSession.git?.changedFiles ?? [];
 
@@ -274,6 +291,7 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
     changedFiles,
     risks: rawSession.analysis?.risks ?? [],
     todos: rawSession.analysis?.todos ?? [],
+    futureImprovements: rawSession.analysis?.future_improvements ?? [],
     portfolioText: rawSession.analysis?.portfolio_text ?? "",
     aiUsage: {
       provider: rawSession.metadata?.provider ?? rawSession.provider ?? "mock",
@@ -292,7 +310,10 @@ function toSessionDetail(rawSession: RawSession, file: string): SessionDetail {
 export function getDashboardSessions(): DashboardSession[] {
   return readRawSessions()
     .map((rawSession) => {
-      const session = toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`);
+      const session = toSessionDetail(
+        rawSession,
+        rawSession.fileName ?? `${rawSession.id ?? ""}.json`
+      );
 
       return {
         id: session.id,
@@ -312,7 +333,10 @@ export function getDashboardSessions(): DashboardSession[] {
 export function getPortfolioSessions(): PortfolioSession[] {
   return readRawSessions()
     .map((rawSession) => {
-      const session = toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`);
+      const session = toSessionDetail(
+        rawSession,
+        rawSession.fileName ?? `${rawSession.id ?? ""}.json`
+      );
 
       return {
         id: session.id,
@@ -332,7 +356,9 @@ export function getPortfolioSessions(): PortfolioSession[] {
 
 export function getSearchSessions(): SearchSession[] {
   return readRawSessions()
-    .map((rawSession) => toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`))
+    .map((rawSession) =>
+      toSessionDetail(rawSession, rawSession.fileName ?? `${rawSession.id ?? ""}.json`)
+    )
     .sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -345,7 +371,7 @@ export function getCompareSessions(): CompareSession[] {
 
 export function getSettingsSummary(): SettingsSummary {
   const sessions = readRawSessions().map((rawSession) =>
-    toSessionDetail(rawSession, `${rawSession.id ?? ""}.json`)
+    toSessionDetail(rawSession, rawSession.fileName ?? `${rawSession.id ?? ""}.json`)
   );
   const apiKeyConfigured = readEnvValue("OPENAI_API_KEY") !== null;
   const totals = sessions.reduce(

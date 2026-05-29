@@ -722,6 +722,60 @@ h1 {
   margin: 0;
 }
 
+.edit-panel {
+  align-self: start;
+}
+
+.edit-form {
+  display: grid;
+  gap: 14px;
+}
+
+.form-field {
+  display: grid;
+  gap: 8px;
+}
+
+.form-field span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.text-input,
+.text-area {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--foreground);
+  font: inherit;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.text-area {
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.text-input:focus,
+.text-area:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(15, 118, 110, 0.18);
+}
+
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+}
+
 .filter-tabs {
   display: flex;
   flex-wrap: wrap;
