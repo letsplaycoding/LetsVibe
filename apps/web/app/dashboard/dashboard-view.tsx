@@ -86,6 +86,12 @@ export function DashboardView({ projectId }: DashboardViewProps) {
             </Link>
             <Link
               className="button secondary"
+              href={`/dashboard/project/${project.projectId}/mentor`}
+            >
+              AI Mentor
+            </Link>
+            <Link
+              className="button secondary"
               href={`/dashboard/project/${project.projectId}/career`}
             >
               Career Mode
@@ -191,6 +197,13 @@ export function DashboardView({ projectId }: DashboardViewProps) {
           >
             <strong>Release Notes</strong>
             <span>Generate Added, Improved, and Fixed notes from sessions.</span>
+          </Link>
+          <Link
+            className="feature-card"
+            href={`/dashboard/project/${project.projectId}/mentor`}
+          >
+            <strong>AI Mentor</strong>
+            <span>Get practical next-step guidance from project history.</span>
           </Link>
           <Link
             className="feature-card"
