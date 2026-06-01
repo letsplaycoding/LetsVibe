@@ -98,6 +98,12 @@ export function DashboardView({ projectId }: DashboardViewProps) {
             </Link>
             <Link
               className="button secondary"
+              href={`/dashboard/project/${project.projectId}/career-timeline`}
+            >
+              Career Timeline
+            </Link>
+            <Link
+              className="button secondary"
               href={`/dashboard/project/${project.projectId}/interview`}
             >
               Interview Mode
@@ -204,6 +210,13 @@ export function DashboardView({ projectId }: DashboardViewProps) {
           >
             <strong>AI Mentor</strong>
             <span>Get practical next-step guidance from project history.</span>
+          </Link>
+          <Link
+            className="feature-card"
+            href={`/dashboard/project/${project.projectId}/career-timeline`}
+          >
+            <strong>Career Timeline</strong>
+            <span>Turn sessions into skills and growth by week or month.</span>
           </Link>
           <Link
             className="feature-card"
