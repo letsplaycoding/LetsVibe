@@ -116,6 +116,12 @@ export function DashboardView({ projectId }: DashboardViewProps) {
             </Link>
             <Link
               className="button secondary"
+              href={`/dashboard/project/${project.projectId}/backup`}
+            >
+              Backup
+            </Link>
+            <Link
+              className="button secondary"
               href={projectHref("/dashboard/settings", project.projectId)}
             >
               Settings
@@ -217,6 +223,13 @@ export function DashboardView({ projectId }: DashboardViewProps) {
           >
             <strong>Career Timeline</strong>
             <span>Turn sessions into skills and growth by week or month.</span>
+          </Link>
+          <Link
+            className="feature-card"
+            href={`/dashboard/project/${project.projectId}/backup`}
+          >
+            <strong>Backup</strong>
+            <span>Export and restore local project history as JSON.</span>
           </Link>
           <Link
             className="feature-card"
