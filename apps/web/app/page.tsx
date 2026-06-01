@@ -6,9 +6,14 @@ export default function HomePage() {
       <div className="shell">
         <nav className="nav" aria-label="Main navigation">
           <div className="brand">VibeLog</div>
-          <Link className="link" href="/dashboard">
-            Dashboard
-          </Link>
+          <div className="nav-actions">
+            <Link className="link" href="/dashboard">
+              Dashboard
+            </Link>
+            <Link className="link" href="/login">
+              Login
+            </Link>
+          </div>
         </nav>
 
         <section className="hero">
@@ -18,9 +23,14 @@ export default function HomePage() {
             Turn AI-assisted coding sessions into readable development history,
             Markdown logs, and portfolio-ready summaries.
           </p>
-          <Link className="button" href="/dashboard">
-            Open Dashboard
-          </Link>
+          <div className="portfolio-actions">
+            <Link className="button" href="/dashboard">
+              Open Local Dashboard
+            </Link>
+            <Link className="button secondary" href="/dashboard/saas">
+              Open SaaS Shell
+            </Link>
+          </div>
         </section>
       </div>
     </main>

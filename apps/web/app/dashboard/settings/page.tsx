@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LanguageSelector, ThemeSelector } from "../../language-client";
+import { AuthStatus } from "../../auth-status";
 import { getSettingsSummary } from "../../../lib/sessions";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             </p>
             <ThemeSelector />
           </article>
+
+          <AuthStatus />
 
           <article className="detail-panel">
             <div className="panel-heading">

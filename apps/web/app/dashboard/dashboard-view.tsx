@@ -156,6 +156,9 @@ export function DashboardView({ projectId }: DashboardViewProps) {
             >
               Portfolio Generator
             </Link>
+            <Link className="button secondary" href="/dashboard/saas">
+              SaaS Shell
+            </Link>
           </div>
         </nav>
 
