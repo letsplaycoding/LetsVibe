@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PortfolioSession } from "../../../lib/sessions";
+import { markOnboardingStep } from "../onboarding";
 import { exportPortfolioMarkdown } from "./actions";
 
 type PortfolioGeneratorProps = {
@@ -65,6 +66,7 @@ export function PortfolioGenerator({
 
   function generatePortfolio(): void {
     setGeneratedMarkdown(buildPortfolioMarkdown(selectedSessions));
+    markOnboardingStep("generatedPortfolio");
     setCopyLabel("Copy");
     setExportMessage("");
   }
@@ -95,7 +97,17 @@ export function PortfolioGenerator({
   }
 
   if (sessions.length === 0) {
-    return <div className="empty-state">No sessions found</div>;
+    return (
+      <div className="empty-state empty-state-guide">
+        <h2>No sessions found</h2>
+        <p>
+          Record a local session first, then return here to generate portfolio
+          Markdown from real project history.
+        </p>
+        <pre className="code-block">{`cd apps/cli
+npm run dev -- end`}</pre>
+      </div>
+    );
   }
 
   return (

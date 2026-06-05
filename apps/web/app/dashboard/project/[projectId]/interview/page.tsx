@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OnboardingMarker } from "../../../onboarding";
 import { getDashboardSessions, resolveProject } from "../../../../../lib/sessions";
 import { InterviewGenerator } from "./interview-generator";
 
@@ -49,6 +50,7 @@ export default async function InterviewPage({ params }: InterviewPageProps) {
         </header>
 
         <InterviewGenerator projectId={project.projectId} />
+        <OnboardingMarker step="openedInterviewMode" />
       </div>
     </main>
   );

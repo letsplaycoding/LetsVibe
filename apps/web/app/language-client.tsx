@@ -178,6 +178,8 @@ const TRANSLATIONS: Record<string, string> = {
   "Ask": "\uc9c8\ubb38\ud558\uae30",
   "Ask about development history": "\uac1c\ubc1c \ud788\uc2a4\ud1a0\ub9ac\uc5d0 \ub300\ud574 \uc9c8\ubb38\ud558\uae30",
   "No sessions found": "\uc138\uc158\uc774 \uc5c6\uc2b5\ub2c8\ub2e4",
+  "Create your first local development log from the CLI, then refresh this dashboard.": "CLI\uc5d0\uc11c \uccab \ub85c\uceec \uac1c\ubc1c \ub85c\uadf8\ub97c \ub9cc\ub4e0 \ub4a4 \uc774 \ub300\uc2dc\ubcf4\ub4dc\ub97c \uc0c8\ub85c\uace0\uce68\ud558\uc138\uc694.",
+  "Record a local session first, then return here to generate portfolio Markdown from real project history.": "\uba3c\uc800 \ub85c\uceec \uc138\uc158\uc744 \uae30\ub85d\ud55c \ub4a4 \uc5ec\uae30\ub85c \ub3cc\uc544\uc640 \uc2e4\uc81c \ud504\ub85c\uc81d\ud2b8 \ud788\uc2a4\ud1a0\ub9ac\ub85c \ud3ec\ud2b8\ud3f4\ub9ac\uc624 Markdown\uc744 \uc0dd\uc131\ud558\uc138\uc694.",
   "No session found": "\uc138\uc158\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",
   "None": "\uc5c6\uc74c"
 };

@@ -5,6 +5,7 @@ import {
   getGitMetadata,
   resolveProject
 } from "../../lib/sessions";
+import { Onboarding } from "./onboarding";
 import { ProjectSelector } from "./project-selector";
 
 function formatRelativeTime(value: string): string {
@@ -191,6 +192,11 @@ export function DashboardView({ projectId }: DashboardViewProps) {
           </div>
         </header>
 
+        <Onboarding
+          projectId={project.projectId}
+          sessionCount={sessions.length}
+        />
+
         <section className="feature-grid" aria-label="Dashboard tools">
           <Link
             className="feature-card"
@@ -245,7 +251,15 @@ export function DashboardView({ projectId }: DashboardViewProps) {
 
         <section aria-label="Recent sessions">
           {sessions.length === 0 ? (
-            <div className="empty-state">No sessions found</div>
+            <div className="empty-state empty-state-guide">
+              <h2>No sessions found</h2>
+              <p>
+                Create your first local development log from the CLI, then
+                refresh this dashboard.
+              </p>
+              <pre className="code-block">{`cd apps/cli
+npm run dev -- end`}</pre>
+            </div>
           ) : (
             <div className="session-list">
               {sessions.map((session) => (
