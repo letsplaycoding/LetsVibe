@@ -1,3 +1,4 @@
+[Uploading Bocchi the rock Yamada Ryo!.zip…]()
 # VibeLog
 
 Turn AI-assisted coding changes into explainable development history.
